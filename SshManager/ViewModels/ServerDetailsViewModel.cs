@@ -13,10 +13,10 @@ public partial class ServerDetailsViewModel : ObservableObject
     private readonly ServerDetailsService _service;
     private CancellationTokenSource? _loadCts;
 
-    [ObservableProperty] private bool _isLoading;
+    [ObservableProperty] private bool _isLoading = true;
     [ObservableProperty] private ServerDetailsReport? _report;
     [ObservableProperty] private string _windowTitle = "Server Details";
-    [ObservableProperty] private string _statusMessage = string.Empty;
+    [ObservableProperty] private string _statusMessage = "در حال بارگذاری اطلاعات سرور...";
 
     public ServerDetailsViewModel(
         ServerItemViewModel server,
@@ -29,45 +29,51 @@ public partial class ServerDetailsViewModel : ObservableObject
         _groupName = groupName;
         _service = service ?? new ServerDetailsService();
         WindowTitle = $"Server Details — {server.Name}";
-    }
-
-    public void PrepareForDisplay()
-    {
-        string? enc = null;
-        if (_server.UseCustomCredentials && !string.IsNullOrEmpty(_server.CustomPassword))
-            enc = CredentialService.Encrypt(_server.CustomPassword);
-
-        Report = _service.CreatePlaceholderReport(_server.ToModel(enc), _groupName, _server.Commands.Count);
-        IsLoading = true;
-        StatusMessage = "Connecting and collecting system information...";
+        Report = _service.CreatePlaceholderReport(_server.ToModel(), _groupName, _server.Commands.Count);
     }
 
     public async Task LoadAsync()
     {
         _loadCts?.Cancel();
+        _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
         var token = _loadCts.Token;
 
         IsLoading = true;
-        StatusMessage = "Connecting and collecting system information...";
+        StatusMessage = "در حال اتصال و جمع‌آوری اطلاعات...";
 
         try
         {
-            string? enc = null;
-            if (_server.UseCustomCredentials && !string.IsNullOrEmpty(_server.CustomPassword))
-                enc = CredentialService.Encrypt(_server.CustomPassword);
+            var report = await Task.Run(async () =>
+            {
+                token.ThrowIfCancellationRequested();
 
-            var model = _server.ToModel(enc);
-            Report = await _service.CollectAsync(
-                model, _settings, _groupName, _server.Commands.Count, token);
+                string? enc = null;
+                if (_server.UseCustomCredentials && !string.IsNullOrEmpty(_server.CustomPassword))
+                    enc = CredentialService.Encrypt(_server.CustomPassword);
 
-            StatusMessage = Report.IsSuccess
-                ? $"Updated at {Report.CollectedAt:HH:mm:ss}"
-                : Report.ErrorMessage ?? "Collection failed";
+                var model = _server.ToModel(enc);
+                return await _service.CollectAsync(
+                    model, _settings, _groupName, _server.Commands.Count, token).ConfigureAwait(false);
+            }, token).ConfigureAwait(true);
+
+            Report = report;
+            StatusMessage = report.IsSuccess
+                ? $"بروزرسانی: {report.CollectedAt:HH:mm:ss}"
+                : report.ErrorMessage ?? "جمع‌آوری اطلاعات ناموفق بود";
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "Collection cancelled";
+            StatusMessage = "بارگذاری لغو شد";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+            if (Report != null)
+            {
+                Report.ErrorMessage = ex.Message;
+                Report.IsSuccess = false;
+            }
         }
         finally
         {

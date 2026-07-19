@@ -456,16 +456,21 @@ public partial class MainViewModel : ObservableObject
     {
         if (SelectedServer == null) return;
 
-        var groupName = Groups.FirstOrDefault(g => g.Id == SelectedServer.GroupId)?.Name ?? "(No Group)";
-        var vm = new ServerDetailsViewModel(SelectedServer, BuildSettings(), groupName, _serverDetailsService);
-        vm.PrepareForDisplay();
+        var server = SelectedServer;
+        var groupName = Groups.FirstOrDefault(g => g.Id == server.GroupId)?.Name ?? "(No Group)";
+        var settings = BuildSettings();
 
-        var dialog = new ServerDetailsDialog
+        // Context menu must close before ShowDialog — opening modal from menu freezes WPF.
+        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
         {
-            Owner = Application.Current.MainWindow,
-            DataContext = vm
-        };
-        dialog.ShowDialog();
+            var vm = new ServerDetailsViewModel(server, settings, groupName, _serverDetailsService);
+            var dialog = new ServerDetailsDialog
+            {
+                Owner = Application.Current.MainWindow,
+                DataContext = vm
+            };
+            dialog.ShowDialog();
+        });
     }
 
     [RelayCommand]

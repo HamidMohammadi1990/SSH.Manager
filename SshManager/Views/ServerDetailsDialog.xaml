@@ -6,7 +6,7 @@
         MinWidth="760" MinHeight="600"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource BgDarkBrush}"
-        ContentRendered="Window_ContentRendered"
+        Loaded="Window_Loaded"
         Closing="Window_Closing">
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -233,12 +233,15 @@
             <!-- Loading overlay -->
             <Border Background="#CC1E1E2E" CornerRadius="8"
                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBlock Text="Collecting server information..." FontSize="16"
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MinWidth="320">
+                    <ProgressBar IsIndeterminate="True" Height="4" Width="240"
+                                 Style="{DynamicResource UsageProgressBar}" Margin="0,0,0,16"/>
+                    <TextBlock Text="در حال بارگذاری اطلاعات سرور..." FontSize="16" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Connecting via SSH and running system queries..."
+                    <TextBlock Text="{Binding StatusMessage}"
                                Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
-                               HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                               HorizontalAlignment="Center" Margin="0,8,0,0" TextWrapping="Wrap"
+                               TextAlignment="Center"/>
                 </StackPanel>
             </Border>
         </Grid>
