@@ -35,10 +35,6 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}"/>
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource Border}"/>
 
-    <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="ComboBoxStyles.xaml"/>
-    </ResourceDictionary.MergedDictionaries>
-
     <FontFamily x:Key="MainFont">Segoe UI</FontFamily>
     <FontFamily x:Key="MonoFont">Cascadia Code, Consolas, Courier New</FontFamily>
 
@@ -251,5 +247,9 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="ComboBoxStyles.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
 
 </ResourceDictionary>
