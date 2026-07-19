@@ -22,6 +22,7 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _executionCts;
     private bool _isDirty;
     private GroupItemViewModel? _watchedGroup;
+    private bool _isTabSync;
 
     [ObservableProperty] private string _currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -33,6 +34,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _connectionTimeoutSeconds = 30;
     [ObservableProperty] private int _commandTimeoutSeconds = 60;
     [ObservableProperty] private ServerItemViewModel? _selectedServer;
+    [ObservableProperty] private ServerTabViewModel? _selectedTab;
     [ObservableProperty] private GroupItemViewModel? _selectedGroup;
     [ObservableProperty] private CommandItemViewModel? _selectedCommand;
     [ObservableProperty] private string _executionSummary = string.Empty;
@@ -44,6 +46,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
     public ObservableCollection<GroupItemViewModel> GroupOptionsList { get; } = new();
+    public ObservableCollection<ServerTabViewModel> OpenServerTabs { get; } = new();
     public ObservableCollection<OutputLineViewModel> OutputLines { get; } = new();
     public ObservableCollection<ExecutionServerViewModel> ExecutionResults { get; } = new();
 
@@ -51,9 +54,12 @@ public partial class MainViewModel : ObservableObject
 
     public Array ConnectionTypes => Enum.GetValues(typeof(ConnectionType));
 
+    public bool HasOpenTabs => OpenServerTabs.Count > 0;
+
     public MainViewModel()
     {
         Groups.CollectionChanged += OnGroupsCollectionChanged;
+        OpenServerTabs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasOpenTabs));
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) =>
@@ -136,8 +142,27 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = $"Theme switched to {CurrentTheme}";
     }
 
+    partial void OnSelectedTabChanged(ServerTabViewModel? value)
+    {
+        if (value == null) return;
+        if (SelectedServer == value.Server) return;
+
+        _isTabSync = true;
+        try
+        {
+            SelectedServer = value.Server;
+        }
+        finally
+        {
+            _isTabSync = false;
+        }
+    }
+
     partial void OnSelectedServerChanged(ServerItemViewModel? value)
     {
+        if (value != null && !_isTabSync)
+            OpenOrSelectTab(value);
+
         if (value != null)
         {
             if (value.ConnectionType == ConnectionType.Ssh && value.Port == 23)
@@ -145,6 +170,42 @@ public partial class MainViewModel : ObservableObject
             if (value.ConnectionType == ConnectionType.Telnet && value.Port == 22)
                 value.Port = 23;
         }
+    }
+
+    private ServerItemViewModel? ActiveServer => SelectedTab?.Server ?? SelectedServer;
+
+    private void OpenOrSelectTab(ServerItemViewModel server)
+    {
+        var existing = OpenServerTabs.FirstOrDefault(t => t.Server.Id == server.Id);
+        if (existing != null)
+        {
+            if (SelectedTab != existing)
+                SelectedTab = existing;
+            return;
+        }
+
+        var tab = new ServerTabViewModel(server);
+        OpenServerTabs.Add(tab);
+        SelectedTab = tab;
+    }
+
+    private void CloseTabForServer(ServerItemViewModel server)
+    {
+        var tab = OpenServerTabs.FirstOrDefault(t => t.Server.Id == server.Id);
+        if (tab == null) return;
+
+        OpenServerTabs.Remove(tab);
+        if (SelectedTab == tab)
+            SelectedTab = OpenServerTabs.LastOrDefault();
+    }
+
+    [RelayCommand]
+    private void CloseTab(ServerTabViewModel? tab)
+    {
+        if (tab == null) return;
+        OpenServerTabs.Remove(tab);
+        if (SelectedTab == tab)
+            SelectedTab = OpenServerTabs.LastOrDefault();
     }
 
     private void MarkDirty()
@@ -171,6 +232,8 @@ public partial class MainViewModel : ObservableObject
         RefreshGroupOptions();
 
         Servers.Clear();
+        OpenServerTabs.Clear();
+        SelectedTab = null;
         foreach (var s in data.Servers.OrderBy(s => s.Order))
         {
             var pwd = s.UseCustomCredentials && s.CustomPasswordEncrypted != null
@@ -269,21 +332,24 @@ public partial class MainViewModel : ObservableObject
         };
         Servers.Add(server);
         SelectedServer = server;
+        OpenOrSelectTab(server);
         MarkDirty();
     }
 
     [RelayCommand]
     private void RemoveServer()
     {
-        if (SelectedServer == null) return;
+        var server = ActiveServer;
+        if (server == null) return;
         var result = MessageBox.Show(
-            $"Remove server '{SelectedServer.Name}'?",
+            $"Remove server '{server.Name}'?",
             "Confirm Remove",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
 
-        Servers.Remove(SelectedServer);
+        Servers.Remove(server);
+        CloseTabForServer(server);
         ReorderServers();
         SelectedServer = Servers.FirstOrDefault();
         MarkDirty();
@@ -292,7 +358,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void MoveServerUp()
     {
-        if (SelectedServer == null) return;
+        if (ActiveServer == null) return;
         var idx = Servers.IndexOf(SelectedServer);
         if (idx <= 0) return;
         Servers.Move(idx, idx - 1);
@@ -303,7 +369,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void MoveServerDown()
     {
-        if (SelectedServer == null) return;
+        if (ActiveServer == null) return;
         var idx = Servers.IndexOf(SelectedServer);
         if (idx < 0 || idx >= Servers.Count - 1) return;
         Servers.Move(idx, idx + 1);
@@ -357,9 +423,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void AddCommand()
     {
-        if (SelectedServer == null) return;
-        var cmd = new CommandItemViewModel { Text = "echo hello", Order = SelectedServer.Commands.Count };
-        SelectedServer.Commands.Add(cmd);
+        var server = ActiveServer;
+        if (server == null) return;
+        var cmd = new CommandItemViewModel { Text = "echo hello", Order = server.Commands.Count };
+        server.Commands.Add(cmd);
         SelectedCommand = cmd;
         MarkDirty();
     }
@@ -367,31 +434,34 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void RemoveCommand()
     {
-        if (SelectedServer == null || SelectedCommand == null) return;
-        SelectedServer.Commands.Remove(SelectedCommand);
-        ReorderCommands(SelectedServer);
+        var server = ActiveServer;
+        if (server == null || SelectedCommand == null) return;
+        server.Commands.Remove(SelectedCommand);
+        ReorderCommands(server);
         MarkDirty();
     }
 
     [RelayCommand]
     private void MoveCommandUp()
     {
-        if (SelectedServer == null || SelectedCommand == null) return;
-        var idx = SelectedServer.Commands.IndexOf(SelectedCommand);
+        var server = ActiveServer;
+        if (server == null || SelectedCommand == null) return;
+        var idx = server.Commands.IndexOf(SelectedCommand);
         if (idx <= 0) return;
-        SelectedServer.Commands.Move(idx, idx - 1);
-        ReorderCommands(SelectedServer);
+        server.Commands.Move(idx, idx - 1);
+        ReorderCommands(server);
         MarkDirty();
     }
 
     [RelayCommand]
     private void MoveCommandDown()
     {
-        if (SelectedServer == null || SelectedCommand == null) return;
-        var idx = SelectedServer.Commands.IndexOf(SelectedCommand);
-        if (idx < 0 || idx >= SelectedServer.Commands.Count - 1) return;
-        SelectedServer.Commands.Move(idx, idx + 1);
-        ReorderCommands(SelectedServer);
+        var server = ActiveServer;
+        if (server == null || SelectedCommand == null) return;
+        var idx = server.Commands.IndexOf(SelectedCommand);
+        if (idx < 0 || idx >= server.Commands.Count - 1) return;
+        server.Commands.Move(idx, idx + 1);
+        ReorderCommands(server);
         MarkDirty();
     }
 
@@ -583,14 +653,15 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void BrowsePrivateKey()
     {
-        if (SelectedServer == null) return;
+        var server = ActiveServer;
+        if (server == null) return;
         var dialog = new OpenFileDialog
         {
             Filter = "Key files (*.pem;*.ppk;*.key)|*.pem;*.ppk;*.key|All files (*.*)|*.*"
         };
         if (dialog.ShowDialog() == true)
         {
-            SelectedServer.PrivateKeyPath = dialog.FileName;
+            server.PrivateKeyPath = dialog.FileName;
             MarkDirty();
         }
     }
@@ -646,6 +717,8 @@ public partial class MainViewModel : ObservableObject
         RefreshGroupOptions();
 
         Servers.Clear();
+        OpenServerTabs.Clear();
+        SelectedTab = null;
         foreach (var s in data.Servers.OrderBy(s => s.Order))
         {
             var pwd = s.UseCustomCredentials && s.CustomPasswordEncrypted != null

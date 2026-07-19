@@ -205,9 +205,90 @@
     </Style>
 
     <!-- ScrollBar -->
-    <Style TargetType="ScrollBar">
+    <Style x:Key="ModernScrollBar" TargetType="ScrollBar">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Width" Value="8"/>
+        <Setter Property="Width" Value="6"/>
+        <Setter Property="MinWidth" Value="6"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent" Width="6">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate>
+                                            <Border x:Name="ThumbBd" Background="{DynamicResource BorderBrush}"
+                                                    CornerRadius="3" Margin="1,2" Opacity="0.6"/>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ThumbBd" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                                    <Setter TargetName="ThumbBd" Property="Opacity" Value="1"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ScrollBar" BasedOn="{StaticResource ModernScrollBar}"/>
+
+    <Style x:Key="ModernScrollViewer" TargetType="ScrollViewer">
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+        <Setter Property="PanningMode" Value="VerticalOnly"/>
+    </Style>
+
+    <Style x:Key="FormTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="10,8"/>
+    </Style>
+
+    <Style x:Key="FormComboBox" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="10,8"/>
+    </Style>
+
+    <Style x:Key="FlatListBox" TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+    </Style>
+
+    <Style x:Key="ServerTabItem" TargetType="TabItem">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}"
+                            BorderThickness="0,0,0,2" BorderBrush="Transparent" Margin="0,0,4,0">
+                        <ContentPresenter ContentSource="Header"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource AccentLightBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgLightBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgLightBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Expander -->

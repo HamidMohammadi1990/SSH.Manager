@@ -46,7 +46,8 @@
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="10,8"/>
-        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="Height" Value="40"/>
         <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="ItemContainerStyle" Value="{StaticResource ComboBoxItemStyle}"/>

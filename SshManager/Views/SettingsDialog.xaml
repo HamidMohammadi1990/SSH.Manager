@@ -5,7 +5,7 @@
         Width="480" Height="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="{StaticResource BgDarkBrush}">
+        Background="{DynamicResource BgDarkBrush}">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -13,20 +13,20 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Application Settings" Style="{StaticResource SectionTitle}" FontSize="18"/>
+        <TextBlock Text="Application Settings" Style="{DynamicResource SectionTitle}" FontSize="18"/>
 
         <StackPanel Grid.Row="1" Margin="0,8,0,0">
-            <TextBlock Text="Default Credentials" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="Default Credentials" Style="{DynamicResource SectionTitle}"/>
             <TextBlock Text="Used when a server has no custom credentials set." 
-                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,12"/>
+                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,12"/>
 
-            <TextBlock Text="Username" Style="{StaticResource FieldLabel}"/>
+            <TextBlock Text="Username" Style="{DynamicResource FieldLabel}"/>
             <TextBox x:Name="UsernameBox" Margin="0,0,0,12"/>
 
-            <TextBlock Text="Password" Style="{StaticResource FieldLabel}"/>
+            <TextBlock Text="Password" Style="{DynamicResource FieldLabel}"/>
             <PasswordBox x:Name="PasswordBox" Margin="0,0,0,20"/>
 
-            <TextBlock Text="Timeouts" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="Timeouts" Style="{DynamicResource SectionTitle}"/>
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -34,19 +34,19 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="Connection Timeout (seconds)" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="Connection Timeout (seconds)" Style="{DynamicResource FieldLabel}"/>
                     <TextBox x:Name="ConnectionTimeoutBox"/>
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <TextBlock Text="Command Timeout (seconds)" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="Command Timeout (seconds)" Style="{DynamicResource FieldLabel}"/>
                     <TextBox x:Name="CommandTimeoutBox"/>
                 </StackPanel>
             </Grid>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="Cancel" Style="{StaticResource SecondaryButton}" Width="100" Margin="0,0,8,0" Click="Cancel_Click"/>
-            <Button Content="Save" Style="{StaticResource PrimaryButton}" Width="100" Click="Save_Click"/>
+            <Button Content="Cancel" Style="{DynamicResource SecondaryButton}" Width="100" Margin="0,0,8,0" Click="Cancel_Click"/>
+            <Button Content="Save" Style="{DynamicResource PrimaryButton}" Width="100" Click="Save_Click"/>
         </StackPanel>
     </Grid>
 </Window>

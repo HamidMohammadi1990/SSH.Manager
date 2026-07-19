@@ -40,7 +40,5 @@ public partial class MainWindow : Window
             e.Cancel = true;
     }
 
-    private void ServerField_Changed(object sender, RoutedEventArgs e) => ViewModel.OnServerFieldChanged();
-    private void CommandField_Changed(object sender, TextChangedEventArgs e) => ViewModel.OnCommandFieldChanged();
     private void GroupField_Changed(object sender, TextChangedEventArgs e) => ViewModel.OnGroupFieldChanged();
 }
