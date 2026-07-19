@@ -130,8 +130,8 @@
                                     </TextBlock>
                                 </Grid>
                                 <ProgressBar Style="{DynamicResource UsageProgressBar}" Margin="0,10,0,8"
-                                             Value="{Binding Report.MemoryUsagePercent}"
-                                             Foreground="{Binding Report.MemoryUsagePercent, Converter={StaticResource UsageBrush}}"/>
+                                             Value="{Binding Report.MemoryUsagePercent, Mode=OneWay}"
+                                             Foreground="{Binding Report.MemoryUsagePercent, Mode=OneWay, Converter={StaticResource UsageBrush}}"/>
                                 <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12">
                                     <Run Text="{Binding Report.MemoryUsedBytes, Converter={StaticResource BytesStr}, Mode=OneWay}"/>
                                     <Run Text=" used of "/>
@@ -153,7 +153,7 @@
                                 </Grid>
                                 <ProgressBar Style="{DynamicResource UsageProgressBar}" Margin="0,10,0,8"
                                              Value="{Binding Report.CpuUsagePercent, Mode=OneWay, TargetNullValue=0}"
-                                             Foreground="{Binding Report.CpuUsagePercent, Converter={StaticResource UsageBrush}}"/>
+                                             Foreground="{Binding Report.CpuUsagePercent, Mode=OneWay, Converter={StaticResource UsageBrush}}"/>
                                 <TextBlock Text="Sampled over ~0.3s via SSH" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/>
                             </StackPanel>
                         </Border>
@@ -188,8 +188,8 @@
                                             </TextBlock>
                                         </Grid>
                                         <ProgressBar Grid.Row="1" Style="{DynamicResource UsageProgressBar}" Margin="0,8,0,6"
-                                                     Value="{Binding UsagePercent}"
-                                                     Foreground="{Binding UsagePercent, Converter={StaticResource UsageBrush}}"/>
+                                                     Value="{Binding UsagePercent, Mode=OneWay}"
+                                                     Foreground="{Binding UsagePercent, Mode=OneWay, Converter={StaticResource UsageBrush}}"/>
                                         <TextBlock Grid.Row="2" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12">
                                             <Run Text="{Binding UsedBytes, Converter={StaticResource BytesStr}, Mode=OneWay}"/>
                                             <Run Text=" used of "/>
