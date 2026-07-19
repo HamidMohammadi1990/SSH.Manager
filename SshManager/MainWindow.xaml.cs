@@ -45,7 +45,7 @@ public partial class MainWindow : Window
 
     private void GroupField_Changed(object sender, TextChangedEventArgs e) => ViewModel.OnGroupFieldChanged();
 
-    private void ServerList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void ServerList_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListBox listBox) return;
 
@@ -75,13 +75,20 @@ public partial class MainWindow : Window
 
     private async void ViewDetailsMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (ServerListBox.SelectedItem is not ServerItemViewModel server)
-            return;
+        try
+        {
+            if (ServerListBox.SelectedItem is not ServerItemViewModel server)
+                return;
 
-        if (sender is MenuItem { Parent: ContextMenu menu })
-            menu.IsOpen = false;
+            if (sender is MenuItem { Parent: ContextMenu menu })
+                menu.IsOpen = false;
 
-        await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
-        ViewModel.OpenServerDetails(server);
+            await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
+            ViewModel.OpenServerDetails(server);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Server Details", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 }

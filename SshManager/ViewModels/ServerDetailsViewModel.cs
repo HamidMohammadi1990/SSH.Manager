@@ -1,4 +1,4 @@
-using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SshManager.Models;
@@ -12,6 +12,7 @@ public partial class ServerDetailsViewModel : ObservableObject
     private readonly AppSettings _settings;
     private readonly string _groupName;
     private readonly ServerDetailsService _service;
+    private readonly Dispatcher _uiDispatcher;
     private CancellationTokenSource? _loadCts;
     private bool _isClosed;
 
@@ -29,6 +30,7 @@ public partial class ServerDetailsViewModel : ObservableObject
         _settings = settings;
         _groupName = groupName;
         _service = new ServerDetailsService();
+        _uiDispatcher = Dispatcher.CurrentDispatcher;
         WindowTitle = $"Server Details — {server.Name}";
         Report = _service.CreatePlaceholderReport(_server.ToModel(), _groupName, _server.Commands.Count);
     }
@@ -42,8 +44,11 @@ public partial class ServerDetailsViewModel : ObservableObject
         _loadCts = new CancellationTokenSource();
         var token = _loadCts.Token;
 
-        IsLoading = true;
-        StatusMessage = "در حال اتصال و جمع‌آوری اطلاعات...";
+        await RunOnUiAsync(() =>
+        {
+            IsLoading = true;
+            StatusMessage = "در حال اتصال و جمع‌آوری اطلاعات...";
+        });
 
         try
         {
@@ -54,9 +59,8 @@ public partial class ServerDetailsViewModel : ObservableObject
                 model, _settings, _groupName, _server.Commands.Count, token).ConfigureAwait(false);
             if (_isClosed || token.IsCancellationRequested) return;
 
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            await RunOnUiAsync(() =>
             {
-                if (_isClosed) return;
                 Report = report;
                 StatusMessage = report.IsSuccess
                     ? $"بروزرسانی: {report.CollectedAt:HH:mm:ss}"
@@ -65,37 +69,42 @@ public partial class ServerDetailsViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            if (!_isClosed)
-            {
-                await Application.Current.Dispatcher.InvokeAsync(() =>
-                    StatusMessage = "بارگذاری لغو شد");
-            }
+            await RunOnUiAsync(() => StatusMessage = "بارگذاری لغو شد");
         }
         catch (Exception ex)
         {
-            if (!_isClosed)
+            await RunOnUiAsync(() =>
             {
-                await Application.Current.Dispatcher.InvokeAsync(() =>
+                StatusMessage = ex.Message;
+                if (Report != null)
                 {
-                    StatusMessage = ex.Message;
-                    if (Report != null)
-                    {
-                        Report.ErrorMessage = ex.Message;
-                        Report.IsSuccess = false;
-                    }
-                });
-            }
+                    Report.ErrorMessage = ex.Message;
+                    Report.IsSuccess = false;
+                }
+            });
         }
         finally
         {
-            if (!_isClosed)
-            {
-                await Application.Current.Dispatcher.InvokeAsync(() => IsLoading = false);
-            }
-
+            await RunOnUiAsync(() => IsLoading = false);
             _loadCts?.Dispose();
             _loadCts = null;
         }
+    }
+
+    private Task RunOnUiAsync(Action action)
+    {
+        if (_isClosed) return Task.CompletedTask;
+
+        if (_uiDispatcher.CheckAccess())
+        {
+            if (!_isClosed) action();
+            return Task.CompletedTask;
+        }
+
+        return _uiDispatcher.InvokeAsync(() =>
+        {
+            if (!_isClosed) action();
+        }).Task;
     }
 
     private ServerProfile BuildServerModel()
@@ -114,6 +123,7 @@ public partial class ServerDetailsViewModel : ObservableObject
 
     public void OnDialogClosed()
     {
+        if (_isClosed) return;
         _isClosed = true;
         CancelLoading();
     }

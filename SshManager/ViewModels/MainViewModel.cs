@@ -293,6 +293,7 @@ public partial class MainViewModel : ObservableObject
         var tab = OpenServerTabs.FirstOrDefault(t => t.Server.Id == server.Id);
         if (tab == null) return;
 
+        tab.Detach();
         OpenServerTabs.Remove(tab);
         if (SelectedTab == tab)
             SelectedTab = OpenServerTabs.LastOrDefault();
@@ -302,6 +303,7 @@ public partial class MainViewModel : ObservableObject
     private void CloseTab(ServerTabViewModel? tab)
     {
         if (tab == null) return;
+        tab.Detach();
         OpenServerTabs.Remove(tab);
         if (SelectedTab == tab)
             SelectedTab = OpenServerTabs.LastOrDefault();
@@ -450,13 +452,17 @@ public partial class MainViewModel : ObservableObject
         MarkDirty();
     }
 
-    private Window? _detailsDialog;
+    private ServerDetailsDialog? _detailsDialog;
 
     public void OpenServerDetails(ServerItemViewModel server)
     {
         try
         {
-            CloseDetailsDialog();
+            if (_detailsDialog != null)
+            {
+                _detailsDialog.Close();
+                _detailsDialog = null;
+            }
 
             var groupName = Groups.FirstOrDefault(g => g.Id == server.GroupId)?.Name ?? "(No Group)";
             var settings = BuildSettings();
@@ -471,9 +477,6 @@ public partial class MainViewModel : ObservableObject
             {
                 if (ReferenceEquals(_detailsDialog, dialog))
                     _detailsDialog = null;
-
-                if (dialog.DataContext is ServerDetailsViewModel detailsVm)
-                    detailsVm.OnDialogClosed();
             };
 
             _detailsDialog = dialog;
@@ -483,17 +486,6 @@ public partial class MainViewModel : ObservableObject
         {
             DialogService.ShowError(ex.Message, "Server Details");
         }
-    }
-
-    private void CloseDetailsDialog()
-    {
-        if (_detailsDialog == null) return;
-
-        if (_detailsDialog.DataContext is ServerDetailsViewModel vm)
-            vm.OnDialogClosed();
-
-        try { _detailsDialog.Close(); } catch { /* already closing */ }
-        _detailsDialog = null;
     }
 
     [RelayCommand]
@@ -932,10 +924,15 @@ public partial class MainViewModel : ObservableObject
 
     public void EnsureServerEditorOpen(ServerItemViewModel server)
     {
-        if (!ReferenceEquals(SelectedServer, server))
-            SelectedServer = server;
-        else
-            OpenOrSelectTab(server);
+        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            if (!Servers.Contains(server)) return;
+
+            if (!ReferenceEquals(SelectedServer, server))
+                SelectedServer = server;
+            else
+                OpenOrSelectTab(server);
+        });
     }
 
     private AppSettings BuildSettings() => new()

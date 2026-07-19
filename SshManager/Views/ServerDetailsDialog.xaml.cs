@@ -19,13 +19,25 @@ public partial class ServerDetailsDialog : Window
             return;
 
         _loadStarted = true;
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _ = vm.LoadAsync());
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _ = LoadSafeAsync(vm));
+    }
+
+    private static async Task LoadSafeAsync(ServerDetailsViewModel vm)
+    {
+        try
+        {
+            await vm.LoadAsync();
+        }
+        catch (Exception)
+        {
+            // Errors are surfaced inside the view model; swallow to avoid crashing the app.
+        }
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         if (DataContext is ServerDetailsViewModel vm)
-            vm.CancelLoading();
+            vm.OnDialogClosed();
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
