@@ -55,7 +55,7 @@
                           SelectionChanged="ServerField_Changed">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding Converter={DynamicResource ConnTypeStr}}"/>
+                            <TextBlock Text="{Binding Converter={StaticResource ConnTypeStr}}"/>
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>

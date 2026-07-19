@@ -95,7 +95,7 @@
                         <TextBlock Text="Group Name" Style="{DynamicResource FieldLabel}"/>
                         <TextBox Text="{Binding SelectedGroup.Name, UpdateSourceTrigger=PropertyChanged}"
                                  Margin="0,0,0,4" TextChanged="GroupField_Changed"
-                                 IsEnabled="{Binding SelectedGroup, Converter={DynamicResource ObjectToBool}}"/>
+                                 IsEnabled="{Binding SelectedGroup, Converter={StaticResource ObjectToBool}}"/>
                         <TextBlock Text="Edit name, then click Save" Foreground="{DynamicResource TextSecondaryBrush}"
                                    FontSize="10" Margin="0,0,0,4"/>
                     </StackPanel>
@@ -117,7 +117,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                                 Fill="{Binding ConnectionStatus, Converter={DynamicResource StatusBrush}}"/>
+                                                 Fill="{Binding ConnectionStatus, Converter={StaticResource StatusBrush}}"/>
                                         <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
                                             <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11">
@@ -125,7 +125,7 @@
                                                 <Run Text=":"/>
                                                 <Run Text="{Binding Port, Mode=OneWay}"/>
                                                 <Run Text=" • "/>
-                                                <Run Text="{Binding ConnectionType, Converter={DynamicResource ConnTypeStr}, Mode=OneWay}"/>
+                                                <Run Text="{Binding ConnectionType, Converter={StaticResource ConnTypeStr}, Mode=OneWay}"/>
                                             </TextBlock>
                                         </StackPanel>
                                         <TextBlock Grid.Column="2" Text="{Binding Commands.Count, StringFormat={}{0} cmd}"
@@ -148,7 +148,7 @@
                         </StackPanel>
                         <Button Content="🔍 Test All Connections" Style="{DynamicResource SecondaryButton}"
                                 Command="{Binding TestAllConnectionsCommand}"
-                                IsEnabled="{Binding IsTestingConnections, Converter={DynamicResource InverseBool}}"/>
+                                IsEnabled="{Binding IsTestingConnections, Converter={StaticResource InverseBool}}"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -190,7 +190,7 @@
                 <TextBlock Text="Click + Add to open a server tab, or select a server from the list"
                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="14"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Visibility="{Binding HasOpenTabs, Converter={DynamicResource BoolToVis}, ConverterParameter=Invert}"/>
+                           Visibility="{Binding HasOpenTabs, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}"/>
             </Grid>
 
             <Border Grid.Column="3" Background="{DynamicResource BorderBrush}"/>
@@ -210,10 +210,10 @@
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
                         <Button Content="▶ Run All" Style="{DynamicResource PrimaryButton}" Margin="0,0,8,0"
                                 Command="{Binding ExecuteAllCommand}"
-                                IsEnabled="{Binding IsExecuting, Converter={DynamicResource InverseBool}}"/>
+                                IsEnabled="{Binding IsExecuting, Converter={StaticResource InverseBool}}"/>
                         <Button Content="⏹ Cancel" Style="{DynamicResource DangerButton}" Margin="0,0,8,0"
                                 Command="{Binding CancelExecutionCommand}"
-                                Visibility="{Binding IsExecuting, Converter={DynamicResource BoolToVis}}"/>
+                                Visibility="{Binding IsExecuting, Converter={StaticResource BoolToVis}}"/>
                         <Button Content="Clear" Style="{DynamicResource SecondaryButton}"
                                 Command="{Binding ClearOutputCommand}"/>
                     </StackPanel>
@@ -247,7 +247,7 @@
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
                                                         <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                                                 Fill="{Binding Status, Converter={DynamicResource ExecStatusBrush}}"/>
+                                                                 Fill="{Binding Status, Converter={StaticResource ExecStatusBrush}}"/>
                                                         <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                                             <TextBlock Text="{Binding ServerName}" FontWeight="SemiBold" FontSize="12"/>
                                                             <TextBlock Text="{Binding GroupName}" FontSize="10"
@@ -255,7 +255,7 @@
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="2" FontSize="11"
                                                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                   Text="{Binding Duration, Converter={DynamicResource TimeSpanStr}}"/>
+                                                                   Text="{Binding Duration, Converter={StaticResource TimeSpanStr}}"/>
                                                     </Grid>
                                                 </Expander.Header>
                                                 <ItemsControl ItemsSource="{Binding Commands}" Margin="16,4,0,4">
@@ -271,17 +271,17 @@
                                                                             <ColumnDefinition Width="Auto"/>
                                                                         </Grid.ColumnDefinitions>
                                                                         <Ellipse Width="6" Height="6" VerticalAlignment="Center"
-                                                                                 Fill="{Binding Status, Converter={DynamicResource ExecStatusBrush}}"/>
+                                                                                 Fill="{Binding Status, Converter={StaticResource ExecStatusBrush}}"/>
                                                                         <TextBlock Grid.Column="1" Text="{Binding CommandText}"
                                                                                    FontFamily="{DynamicResource MonoFont}" FontSize="11"
                                                                                    Margin="6,0,0,0" TextWrapping="Wrap"/>
                                                                         <TextBlock Grid.Column="2" FontSize="10"
                                                                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                                   Text="{Binding Duration, Converter={DynamicResource TimeSpanStr}}"/>
+                                                                                   Text="{Binding Duration, Converter={StaticResource TimeSpanStr}}"/>
                                                                     </Grid>
                                                                     <TextBlock Text="{Binding ErrorMessage}" Foreground="#F44336"
                                                                                FontSize="11" Margin="16,4,0,0" TextWrapping="Wrap"
-                                                                               Visibility="{Binding ErrorMessage, Converter={DynamicResource NullToVis}}"/>
+                                                                               Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVis}}"/>
                                                                     <TextBlock Text="{Binding Output}" FontFamily="{DynamicResource MonoFont}"
                                                                                FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"
                                                                                Margin="16,4,0,0" TextWrapping="Wrap" MaxHeight="120"/>
@@ -299,7 +299,7 @@
                     </TabControl>
 
                     <Border Grid.Row="3" Background="{DynamicResource BgCardBrush}" CornerRadius="6" Padding="10" Margin="0,8,0,0"
-                            Visibility="{Binding HasExecutionResults, Converter={DynamicResource BoolToVis}}">
+                            Visibility="{Binding HasExecutionResults, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding ExecutionSummary}" FontSize="12"
                                    Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"/>
                     </Border>
@@ -318,7 +318,7 @@
                         <Run Text="{Binding Servers.Count, Mode=OneWay}"/>
                     </TextBlock>
                     <TextBlock Foreground="{DynamicResource AccentLightBrush}" FontSize="12"
-                               Visibility="{Binding IsExecuting, Converter={DynamicResource BoolToVis}}">
+                               Visibility="{Binding IsExecuting, Converter={StaticResource BoolToVis}}">
                         <Run Text="● Executing..."/>
                     </TextBlock>
                 </StackPanel>
