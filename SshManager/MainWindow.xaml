@@ -46,8 +46,6 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="{Binding ThemeToggleLabel}" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
-                            Command="{Binding ToggleThemeCommand}" ToolTip="Switch between Dark and Light theme"/>
                     <Button Content="⚙ Settings" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
                             Command="{Binding OpenSettingsCommand}"/>
                     <Button Content="💾 Save" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"

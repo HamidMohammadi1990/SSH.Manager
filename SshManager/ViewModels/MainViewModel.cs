@@ -23,7 +23,6 @@ public partial class MainViewModel : ObservableObject
     private bool _isDirty;
     private GroupItemViewModel? _watchedGroup;
     private bool _isTabSync;
-    private bool _suppressThemeApply;
 
     [ObservableProperty] private string _currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -40,9 +39,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private CommandItemViewModel? _selectedCommand;
     [ObservableProperty] private string _executionSummary = string.Empty;
     [ObservableProperty] private bool _hasExecutionResults;
-    [ObservableProperty] private AppTheme _currentTheme = AppTheme.Dark;
-
-    public string ThemeToggleLabel => CurrentTheme == AppTheme.Dark ? "☀ Light" : "🌙 Dark";
 
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
@@ -76,13 +72,6 @@ public partial class MainViewModel : ObservableObject
         };
 
         LoadData();
-    }
-
-    partial void OnCurrentThemeChanged(AppTheme value)
-    {
-        OnPropertyChanged(nameof(ThemeToggleLabel));
-        if (!_suppressThemeApply)
-            ThemeService.ApplyTheme(value);
     }
 
     partial void OnSelectedGroupChanged(GroupItemViewModel? value)
@@ -134,14 +123,6 @@ public partial class MainViewModel : ObservableObject
         GroupOptionsList.Add(NoGroupOption);
         foreach (var group in Groups.OrderBy(g => g.Order))
             GroupOptionsList.Add(group);
-    }
-
-    [RelayCommand]
-    private void ToggleTheme()
-    {
-        CurrentTheme = CurrentTheme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
-        MarkDirty();
-        StatusMessage = $"Theme switched to {CurrentTheme}";
     }
 
     partial void OnSelectedTabChanged(ServerTabViewModel? value)
@@ -233,9 +214,6 @@ public partial class MainViewModel : ObservableObject
             : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
-        _suppressThemeApply = true;
-        CurrentTheme = data.Settings.Theme;
-        _suppressThemeApply = false;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))
@@ -270,7 +248,7 @@ public partial class MainViewModel : ObservableObject
                     : CredentialService.Encrypt(DefaultPassword),
                 ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
                 CommandTimeoutSeconds = CommandTimeoutSeconds,
-                Theme = CurrentTheme
+                Theme = AppTheme.Dark
             },
             Groups = Groups.Select(g => g.ToModel()).OrderBy(g => g.Order).ToList(),
             Servers = Servers.Select(s =>
@@ -293,11 +271,9 @@ public partial class MainViewModel : ObservableObject
     {
         if (!_isDirty) return true;
 
-        var result = MessageBox.Show(
+        var result = DialogService.ShowYesNoCancel(
             "You have unsaved changes. Would you like to save before exiting?\n\nClick 'Yes' to save, 'No' to exit without saving, or 'Cancel' to stay.",
-            "Unsaved Changes",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Question);
+            "Unsaved Changes");
 
         return result switch
         {
@@ -315,11 +291,9 @@ public partial class MainViewModel : ObservableObject
 
     private bool ConfirmBackup()
     {
-        var backup = MessageBox.Show(
+        var backup = DialogService.ShowYesNo(
             "Would you like to export a backup of your servers and settings before exiting?",
-            "Export Backup",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+            "Export Backup");
 
         if (backup == MessageBoxResult.Yes)
             ExportData();
@@ -352,11 +326,10 @@ public partial class MainViewModel : ObservableObject
     {
         var server = ActiveServer;
         if (server == null) return;
-        var result = MessageBox.Show(
+        var result = DialogService.ShowYesNo(
             $"Remove server '{server.Name}'?",
             "Confirm Remove",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            DialogKind.Warning);
         if (result != MessageBoxResult.Yes) return;
 
         Servers.Remove(server);
@@ -413,11 +386,10 @@ public partial class MainViewModel : ObservableObject
     private void RemoveGroup()
     {
         if (SelectedGroup == null) return;
-        var result = MessageBox.Show(
+        var result = DialogService.ShowYesNo(
             $"Remove group '{SelectedGroup.Name}'? Servers in this group will become ungrouped.",
             "Confirm Remove",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            DialogKind.Warning);
         if (result != MessageBoxResult.Yes) return;
 
         var groupId = SelectedGroup.Id;
@@ -520,8 +492,7 @@ public partial class MainViewModel : ObservableObject
         var serversWithCommands = Servers.Where(s => s.Commands.Count > 0).ToList();
         if (serversWithCommands.Count == 0)
         {
-            MessageBox.Show("No servers with commands to execute.", "Nothing to Run",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            DialogService.ShowInfo("No servers with commands to execute.", "Nothing to Run");
             return;
         }
 
@@ -612,7 +583,7 @@ public partial class MainViewModel : ObservableObject
                     ? null : CredentialService.Encrypt(DefaultPassword),
                 ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
                 CommandTimeoutSeconds = CommandTimeoutSeconds,
-                Theme = CurrentTheme
+                Theme = AppTheme.Dark
             },
             Groups = Groups.Select(g => g.ToModel()).ToList(),
             Servers = Servers.Select(s =>
@@ -626,7 +597,7 @@ public partial class MainViewModel : ObservableObject
 
         _dataService.Export(data, dialog.FileName);
         StatusMessage = $"Exported to {Path.GetFileName(dialog.FileName)}";
-        MessageBox.Show("Export completed successfully.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+        DialogService.ShowInfo("Export completed successfully.", "Export");
     }
 
     [RelayCommand]
@@ -639,11 +610,10 @@ public partial class MainViewModel : ObservableObject
 
         if (dialog.ShowDialog() != true) return;
 
-        var result = MessageBox.Show(
+        var result = DialogService.ShowYesNo(
             "Import will replace all current servers, groups, and settings. Continue?",
             "Confirm Import",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            DialogKind.Warning);
 
         if (result != MessageBoxResult.Yes) return;
 
@@ -653,11 +623,11 @@ public partial class MainViewModel : ObservableObject
             ApplyImportedData(data);
             MarkDirty();
             StatusMessage = $"Imported from {Path.GetFileName(dialog.FileName)}";
-            MessageBox.Show("Import completed successfully.", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
+            DialogService.ShowInfo("Import completed successfully.", "Import");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Import failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            DialogService.ShowError($"Import failed: {ex.Message}", "Error");
         }
     }
 
@@ -719,9 +689,6 @@ public partial class MainViewModel : ObservableObject
             ? CredentialService.Decrypt(data.Settings.DefaultPasswordEncrypted) : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
-        _suppressThemeApply = true;
-        CurrentTheme = data.Settings.Theme;
-        _suppressThemeApply = false;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))

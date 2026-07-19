@@ -1,4 +1,5 @@
 using System.Windows;
+using SshManager.Services;
 
 namespace SshManager.Views;
 
@@ -28,15 +29,13 @@ public partial class SettingsDialog : Window
 
         if (!int.TryParse(ConnectionTimeoutBox.Text, out var connTimeout) || connTimeout < 1)
         {
-            MessageBox.Show("Connection timeout must be a positive number.", "Validation",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            DialogService.ShowWarning("Connection timeout must be a positive number.", "Validation");
             return;
         }
 
         if (!int.TryParse(CommandTimeoutBox.Text, out var cmdTimeout) || cmdTimeout < 1)
         {
-            MessageBox.Show("Command timeout must be a positive number.", "Validation",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            DialogService.ShowWarning("Command timeout must be a positive number.", "Validation");
             return;
         }
 
