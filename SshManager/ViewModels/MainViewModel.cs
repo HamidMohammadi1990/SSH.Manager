@@ -23,6 +23,7 @@ public partial class MainViewModel : ObservableObject
     private bool _isDirty;
     private GroupItemViewModel? _watchedGroup;
     private bool _isTabSync;
+    private bool _suppressThemeApply;
 
     [ObservableProperty] private string _currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -79,8 +80,9 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnCurrentThemeChanged(AppTheme value)
     {
-        ThemeService.ApplyTheme(value);
         OnPropertyChanged(nameof(ThemeToggleLabel));
+        if (!_suppressThemeApply)
+            ThemeService.ApplyTheme(value);
     }
 
     partial void OnSelectedGroupChanged(GroupItemViewModel? value)
@@ -144,8 +146,8 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedTabChanged(ServerTabViewModel? value)
     {
-        if (value == null) return;
-        if (SelectedServer == value.Server) return;
+        if (_isTabSync || value == null) return;
+        if (ReferenceEquals(SelectedServer, value.Server)) return;
 
         _isTabSync = true;
         try
@@ -163,30 +165,38 @@ public partial class MainViewModel : ObservableObject
         if (value != null && !_isTabSync)
             OpenOrSelectTab(value);
 
-        if (value != null)
-        {
-            if (value.ConnectionType == ConnectionType.Ssh && value.Port == 23)
-                value.Port = 22;
-            if (value.ConnectionType == ConnectionType.Telnet && value.Port == 22)
-                value.Port = 23;
-        }
+        if (value == null) return;
+
+        if (value.ConnectionType == ConnectionType.Ssh && value.Port == 23)
+            value.Port = 22;
+        if (value.ConnectionType == ConnectionType.Telnet && value.Port == 22)
+            value.Port = 23;
     }
 
     private ServerItemViewModel? ActiveServer => SelectedTab?.Server ?? SelectedServer;
 
     private void OpenOrSelectTab(ServerItemViewModel server)
     {
-        var existing = OpenServerTabs.FirstOrDefault(t => t.Server.Id == server.Id);
-        if (existing != null)
-        {
-            if (SelectedTab != existing)
-                SelectedTab = existing;
-            return;
-        }
+        if (_isTabSync) return;
 
-        var tab = new ServerTabViewModel(server);
-        OpenServerTabs.Add(tab);
-        SelectedTab = tab;
+        _isTabSync = true;
+        try
+        {
+            var existing = OpenServerTabs.FirstOrDefault(t => t.Server.Id == server.Id);
+            if (existing == null)
+            {
+                existing = new ServerTabViewModel(server);
+                OpenServerTabs.Add(existing);
+            }
+
+            SelectedTab = existing;
+            if (!ReferenceEquals(SelectedServer, server))
+                SelectedServer = server;
+        }
+        finally
+        {
+            _isTabSync = false;
+        }
     }
 
     private void CloseTabForServer(ServerItemViewModel server)
@@ -223,7 +233,9 @@ public partial class MainViewModel : ObservableObject
             : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
+        _suppressThemeApply = true;
         CurrentTheme = data.Settings.Theme;
+        _suppressThemeApply = false;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))
@@ -331,7 +343,6 @@ public partial class MainViewModel : ObservableObject
             GroupId = SelectedGroup?.Id ?? string.Empty
         };
         Servers.Add(server);
-        SelectedServer = server;
         OpenOrSelectTab(server);
         MarkDirty();
     }
@@ -708,7 +719,9 @@ public partial class MainViewModel : ObservableObject
             ? CredentialService.Decrypt(data.Settings.DefaultPasswordEncrypted) : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
+        _suppressThemeApply = true;
         CurrentTheme = data.Settings.Theme;
+        _suppressThemeApply = false;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))

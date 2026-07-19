@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Windows;
+using System.Windows.Threading;
 using SshManager.Models;
 
 namespace SshManager.Services;
@@ -43,17 +44,20 @@ public static class ThemeService
         merged.Add(comboStyles ?? new ResourceDictionary { Source = new Uri(ComboBoxStylesUri, UriKind.Relative) });
         merged.Add(new ResourceDictionary { Source = controlsUri });
 
-        foreach (Window window in app.Windows)
-            RefreshWindowTheme(window);
+        app.Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            foreach (Window window in app.Windows)
+                RefreshWindowTheme(window);
 
-        ThemeChanged?.Invoke(theme);
+            ThemeChanged?.Invoke(theme);
+        });
     }
 
     private static void RefreshWindowTheme(Window window)
     {
-        window.Background = (System.Windows.Media.Brush)window.FindResource("BgDarkBrush");
-        window.Foreground = (System.Windows.Media.Brush)window.FindResource("TextPrimaryBrush");
-        window.InvalidateVisual();
-        window.UpdateLayout();
+        if (window.FindResource("BgDarkBrush") is System.Windows.Media.Brush background)
+            window.Background = background;
+        if (window.FindResource("TextPrimaryBrush") is System.Windows.Media.Brush foreground)
+            window.Foreground = foreground;
     }
 }

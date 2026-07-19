@@ -163,7 +163,7 @@
                             BorderThickness="0"
                             Padding="0">
                     <TabControl.Resources>
-                        <Style TargetType="TabItem" BasedOn="{DynamicResource ServerTabItem}">
+                        <Style TargetType="TabItem" BasedOn="{StaticResource ServerTabItem}">
                             <Setter Property="HeaderTemplate">
                                 <Setter.Value>
                                     <DataTemplate>
