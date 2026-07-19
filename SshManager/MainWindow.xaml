@@ -208,15 +208,28 @@
 
                     <TextBlock Text="Execution" Style="{DynamicResource SectionTitle}"/>
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-                        <Button Content="▶ Run All" Style="{DynamicResource PrimaryButton}" Margin="0,0,8,0"
-                                Command="{Binding ExecuteAllCommand}"
-                                IsEnabled="{Binding IsExecuting, Converter={StaticResource InverseBool}}"/>
-                        <Button Content="⏹ Cancel" Style="{DynamicResource DangerButton}" Margin="0,0,8,0"
-                                Command="{Binding CancelExecutionCommand}"
-                                Visibility="{Binding IsExecuting, Converter={StaticResource BoolToVis}}"/>
-                        <Button Content="Clear" Style="{DynamicResource SecondaryButton}"
-                                Command="{Binding ClearOutputCommand}"/>
+                    <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="▶ Run All" Style="{DynamicResource PrimaryButton}" Margin="0,0,8,0"
+                                    Command="{Binding ExecuteAllCommand}"
+                                    IsEnabled="{Binding IsExecuting, Converter={StaticResource InverseBool}}"/>
+                            <Button Content="⏹ Cancel" Style="{DynamicResource DangerButton}" Margin="0,0,8,0"
+                                    Command="{Binding CancelExecutionCommand}"
+                                    Visibility="{Binding IsExecuting, Converter={StaticResource BoolToVis}}"/>
+                            <Button Content="Clear" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
+                                    Command="{Binding ClearOutputCommand}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="📂 Load Batch" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
+                                    Command="{Binding LoadBatchCommand}"
+                                    IsEnabled="{Binding IsExecuting, Converter={StaticResource InverseBool}}"/>
+                            <Button Content="▶ Run Batch" Style="{DynamicResource PrimaryButton}"
+                                    Command="{Binding ExecuteBatchCommand}"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding LoadedBatchSummary}" FontSize="11" Margin="0,8,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasLoadedBatch, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
 
                     <TabControl Grid.Row="2">

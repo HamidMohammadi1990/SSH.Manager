@@ -18,8 +18,10 @@ public partial class MainViewModel : ObservableObject
     private readonly JsonDataService _dataService = new();
     private readonly ConnectionTestService _connectionTestService = new();
     private readonly ExecutionService _executionService = new();
+    private readonly BatchExecutionService _batchExecutionService = new();
     private readonly DispatcherTimer _clockTimer;
     private CancellationTokenSource? _executionCts;
+    private BatchJob? _loadedBatchJob;
     private bool _isDirty;
     private GroupItemViewModel? _watchedGroup;
     private bool _isTabSync;
@@ -39,6 +41,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private CommandItemViewModel? _selectedCommand;
     [ObservableProperty] private string _executionSummary = string.Empty;
     [ObservableProperty] private bool _hasExecutionResults;
+    [ObservableProperty] private string _loadedBatchSummary = string.Empty;
+
+    public bool HasLoadedBatch => _loadedBatchJob != null;
 
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
@@ -563,6 +568,82 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void LoadBatch()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Batch files (*.sshbatch;*.txt)|*.sshbatch;*.txt|All files (*.*)|*.*",
+            DefaultExt = "sshbatch"
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            _loadedBatchJob = BatchJobParser.ParseFile(dialog.FileName);
+            LoadedBatchSummary = $"{Path.GetFileName(dialog.FileName)} — {_loadedBatchJob.Summary}";
+            OnPropertyChanged(nameof(HasLoadedBatch));
+            ExecuteBatchCommand.NotifyCanExecuteChanged();
+            StatusMessage = $"Batch loaded: {_loadedBatchJob.Summary}";
+        }
+        catch (Exception ex)
+        {
+            DialogService.ShowError(ex.Message, "Batch Load Failed");
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExecuteBatch))]
+    private async Task ExecuteBatchAsync()
+    {
+        if (IsExecuting || _loadedBatchJob == null) return;
+
+        IsExecuting = true;
+        OutputLines.Clear();
+        ExecutionResults.Clear();
+        HasExecutionResults = false;
+        ExecutionSummary = string.Empty;
+        _executionCts = new CancellationTokenSource();
+
+        AddOutput($"=== Batch execution started: {_loadedBatchJob.Summary} ===", "Info");
+        StatusMessage = "Running batch job...";
+
+        _batchExecutionService.ServerStarted += OnServerStarted;
+        _batchExecutionService.StepCompleted += OnCommandCompleted;
+        _batchExecutionService.SessionCompleted += OnSessionCompleted;
+        _batchExecutionService.OutputReceived += OnBatchOutputReceived;
+
+        try
+        {
+            await _batchExecutionService.ExecuteAsync(_loadedBatchJob, _executionCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            AddOutput("=== Batch execution cancelled ===", "Warning");
+            StatusMessage = "Batch execution cancelled";
+        }
+        catch (Exception ex)
+        {
+            AddOutput($"Fatal error: {ex.Message}", "Error");
+            StatusMessage = "Batch execution failed";
+        }
+        finally
+        {
+            _batchExecutionService.ServerStarted -= OnServerStarted;
+            _batchExecutionService.StepCompleted -= OnCommandCompleted;
+            _batchExecutionService.SessionCompleted -= OnSessionCompleted;
+            _batchExecutionService.OutputReceived -= OnBatchOutputReceived;
+            IsExecuting = false;
+            _executionCts?.Dispose();
+            _executionCts = null;
+            ExecuteBatchCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private bool CanExecuteBatch() => _loadedBatchJob != null && !IsExecuting;
+
+    partial void OnIsExecutingChanged(bool value) => ExecuteBatchCommand.NotifyCanExecuteChanged();
+
+    [RelayCommand]
     private void ExportData()
     {
         var dialog = new SaveFileDialog
@@ -771,6 +852,11 @@ public partial class MainViewModel : ObservableObject
             AddOutput($"=== {ExecutionSummary} ===", "Info");
             StatusMessage = "Execution completed";
         });
+    }
+
+    private void OnBatchOutputReceived(string line)
+    {
+        Application.Current.Dispatcher.Invoke(() => AddOutput(line, "Output"));
     }
 
     private void AddOutput(string text, string category)
