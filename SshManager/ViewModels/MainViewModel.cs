@@ -43,8 +43,31 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _executionSummary = string.Empty;
     [ObservableProperty] private bool _hasExecutionResults;
     [ObservableProperty] private string _loadedBatchSummary = string.Empty;
+    [ObservableProperty] private ConnectionType _batchConnectionType = ConnectionType.Telnet;
 
     public bool HasLoadedBatch => _loadedBatchJob != null;
+    public int BatchPort => BatchConnectionType == ConnectionType.Ssh ? 22 : 23;
+    public string BatchPortLabel => $"Port {BatchPort}";
+
+    public bool IsBatchTelnet
+    {
+        get => BatchConnectionType == ConnectionType.Telnet;
+        set { if (value) BatchConnectionType = ConnectionType.Telnet; }
+    }
+
+    public bool IsBatchSsh
+    {
+        get => BatchConnectionType == ConnectionType.Ssh;
+        set { if (value) BatchConnectionType = ConnectionType.Ssh; }
+    }
+
+    partial void OnBatchConnectionTypeChanged(ConnectionType value)
+    {
+        OnPropertyChanged(nameof(BatchPort));
+        OnPropertyChanged(nameof(BatchPortLabel));
+        OnPropertyChanged(nameof(IsBatchTelnet));
+        OnPropertyChanged(nameof(IsBatchSsh));
+    }
 
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
@@ -584,7 +607,8 @@ public partial class MainViewModel : ObservableObject
         try
         {
             _loadedBatchJob = BatchJobParser.ParseFile(dialog.FileName);
-            LoadedBatchSummary = $"{Path.GetFileName(dialog.FileName)} — {_loadedBatchJob.Summary}";
+            BatchConnectionType = _loadedBatchJob.Defaults.ConnectionType;
+            LoadedBatchSummary = $"{Path.GetFileName(dialog.FileName)} — {_loadedBatchJob.Targets.Count} target(s), {_loadedBatchJob.Steps.Count} step(s)";
             OnPropertyChanged(nameof(HasLoadedBatch));
             ExecuteBatchCommand.NotifyCanExecuteChanged();
             StatusMessage = $"Batch loaded: {_loadedBatchJob.Summary}";
@@ -607,7 +631,8 @@ public partial class MainViewModel : ObservableObject
         ExecutionSummary = string.Empty;
         _executionCts = new CancellationTokenSource();
 
-        AddOutput($"=== Batch execution started: {_loadedBatchJob.Summary} ===", "Info");
+        var job = PrepareBatchJobForExecution(_loadedBatchJob);
+        AddOutput($"=== Batch execution started: {job.Targets.Count} target(s), {job.Steps.Count} step(s), {job.Defaults.ConnectionType} port {job.Defaults.Port} ===", "Info");
         StatusMessage = "Running batch job...";
 
         _batchExecutionService.ServerStarted += OnServerStarted;
@@ -617,7 +642,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            await _batchExecutionService.ExecuteAsync(_loadedBatchJob, BuildSettings(), _executionCts.Token);
+            await _batchExecutionService.ExecuteAsync(job, BuildSettings(), _executionCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -643,6 +668,23 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanExecuteBatch() => _loadedBatchJob != null && !IsExecuting;
+
+    private BatchJob PrepareBatchJobForExecution(BatchJob source)
+    {
+        return new BatchJob
+        {
+            SourceFile = source.SourceFile,
+            Credential = source.Credential,
+            Targets = source.Targets,
+            Steps = source.Steps,
+            Defaults = new BatchDefaults
+            {
+                ConnectionType = BatchConnectionType,
+                Port = BatchPort,
+                StepDelayOverrideMs = source.Defaults.StepDelayOverrideMs
+            }
+        };
+    }
 
     partial void OnIsExecutingChanged(bool value) => ExecuteBatchCommand.NotifyCanExecuteChanged();
 
