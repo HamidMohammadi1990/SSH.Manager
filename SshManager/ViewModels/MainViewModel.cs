@@ -27,6 +27,7 @@ public partial class MainViewModel : ObservableObject
     private bool _isDirty;
     private GroupItemViewModel? _watchedGroup;
     private bool _isTabSync;
+    private bool _suppressTabOnSelect;
 
     [ObservableProperty] private string _currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -247,7 +248,12 @@ public partial class MainViewModel : ObservableObject
     partial void OnSelectedServerChanged(ServerItemViewModel? value)
     {
         if (value != null && !_isTabSync)
-            OpenOrSelectTab(value);
+        {
+            if (_suppressTabOnSelect)
+                _suppressTabOnSelect = false;
+            else
+                OpenOrSelectTab(value);
+        }
 
         if (value == null) return;
 
@@ -890,6 +896,8 @@ public partial class MainViewModel : ObservableObject
     public void OnServerFieldChanged() => MarkDirty();
     public void OnCommandFieldChanged() => MarkDirty();
     public void OnGroupFieldChanged() => MarkDirty();
+
+    public void BeginContextMenuSelection() => _suppressTabOnSelect = true;
 
     private AppSettings BuildSettings() => new()
     {

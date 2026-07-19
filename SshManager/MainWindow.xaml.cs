@@ -54,6 +54,7 @@ public partial class MainWindow : Window
 
         if (element is ListBoxItem item)
         {
+            ViewModel.BeginContextMenuSelection();
             item.IsSelected = true;
             item.Focus();
         }

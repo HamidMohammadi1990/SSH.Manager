@@ -264,6 +264,19 @@
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
     </Style>
 
+    <Style x:Key="OutputListBox" TargetType="ListBox" BasedOn="{StaticResource FlatListBox}">
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="ScrollViewer.CanContentScroll" Value="False"/>
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="DarkContextMenu" TargetType="ContextMenu">
         <Setter Property="Background" Value="{StaticResource BgMediumBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -333,9 +346,6 @@
             </Setter.Value>
         </Setter>
     </Style>
-
-    <Style TargetType="ContextMenu" BasedOn="{StaticResource DarkContextMenu}"/>
-    <Style TargetType="MenuItem" BasedOn="{StaticResource DarkMenuItem}"/>
 
     <Style x:Key="UsageProgressBar" TargetType="ProgressBar">
         <Setter Property="Height" Value="10"/>

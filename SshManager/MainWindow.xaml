@@ -109,7 +109,8 @@
                                  SelectedItem="{Binding SelectedServer}"
                                  PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown">
                             <ListBox.ContextMenu>
-                                <ContextMenu Style="{DynamicResource DarkContextMenu}">
+                                <ContextMenu Style="{DynamicResource DarkContextMenu}"
+                                             DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                     <MenuItem Header="View Details" Style="{DynamicResource DarkMenuItem}"
                                               Command="{Binding ShowServerDetailsCommand}"/>
                                     <Separator Style="{DynamicResource DarkMenuSeparator}"/>
@@ -265,11 +266,13 @@
 
                     <TabControl Grid.Row="3">
                         <TabItem Header="Live Output">
-                            <ListBox ItemsSource="{Binding OutputLines}" FontFamily="{DynamicResource MonoFont}" FontSize="11"
+                            <ListBox ItemsSource="{Binding OutputLines}"
+                                     Style="{StaticResource OutputListBox}"
+                                     FontFamily="{DynamicResource MonoFont}" FontSize="11"
                                      Background="{DynamicResource BgDarkBrush}" Margin="0,8,0,0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock TextWrapping="Wrap">
+                                        <TextBlock TextWrapping="NoWrap">
                                             <Run Text="{Binding Timestamp, StringFormat='[{0:HH:mm:ss}] ', Mode=OneWay}"
                                                  Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <Run Text="{Binding Text, Mode=OneWay}"/>
