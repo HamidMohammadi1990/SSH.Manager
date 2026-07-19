@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -39,6 +40,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private ServerItemViewModel? _selectedServer;
     [ObservableProperty] private ServerTabViewModel? _selectedTab;
     [ObservableProperty] private GroupItemViewModel? _selectedGroup;
+    [ObservableProperty] private string _serversListTitle = "Servers";
     [ObservableProperty] private CommandItemViewModel? _selectedCommand;
     [ObservableProperty] private string _executionSummary = string.Empty;
     [ObservableProperty] private bool _hasExecutionResults;
@@ -70,6 +72,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
+    public ICollectionView ServersView { get; }
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
     public ObservableCollection<GroupItemViewModel> GroupOptionsList { get; } = new();
     public ObservableCollection<ServerTabViewModel> OpenServerTabs { get; } = new();
@@ -84,7 +87,11 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        ServersView = CollectionViewSource.GetDefaultView(Servers);
+        ServersView.Filter = FilterServerBySelectedGroup;
+
         Groups.CollectionChanged += OnGroupsCollectionChanged;
+        Servers.CollectionChanged += OnServersCollectionChanged;
         OpenServerTabs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasOpenTabs));
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -112,6 +119,72 @@ public partial class MainViewModel : ObservableObject
 
         if (_watchedGroup != null)
             _watchedGroup.PropertyChanged += OnSelectedGroupPropertyChanged;
+
+        RefreshServerFilter();
+    }
+
+    private void OnServersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems != null)
+        {
+            foreach (ServerItemViewModel server in e.NewItems)
+                server.PropertyChanged += OnServerPropertyChanged;
+        }
+
+        if (e.OldItems != null)
+        {
+            foreach (ServerItemViewModel server in e.OldItems)
+                server.PropertyChanged -= OnServerPropertyChanged;
+        }
+
+        RefreshServerFilter();
+    }
+
+    private void OnServerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ServerItemViewModel.GroupId))
+            RefreshServerFilter();
+    }
+
+    private bool FilterServerBySelectedGroup(object item)
+    {
+        if (item is not ServerItemViewModel server)
+            return false;
+
+        if (SelectedGroup == null)
+            return true;
+
+        return string.Equals(server.GroupId, SelectedGroup.Id, StringComparison.Ordinal);
+    }
+
+    private void RefreshServerFilter()
+    {
+        ServersView.Refresh();
+        UpdateServersListTitle();
+        EnsureSelectedServerInFilter();
+    }
+
+    private void UpdateServersListTitle()
+    {
+        if (SelectedGroup == null)
+        {
+            ServersListTitle = $"Servers ({Servers.Count})";
+            return;
+        }
+
+        var count = Servers.Count(s => s.GroupId == SelectedGroup.Id);
+        ServersListTitle = $"Servers — {SelectedGroup.Name} ({count})";
+    }
+
+    private void EnsureSelectedServerInFilter()
+    {
+        if (SelectedServer == null)
+            return;
+
+        if (ServersView.Contains(SelectedServer))
+            return;
+
+        SelectedServer = ServersView.Cast<ServerItemViewModel>().FirstOrDefault();
     }
 
     private void OnSelectedGroupPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -264,6 +337,7 @@ public partial class MainViewModel : ObservableObject
 
         _isDirty = false;
         StatusMessage = "Ready";
+        RefreshServerFilter();
     }
 
     public void SaveData()

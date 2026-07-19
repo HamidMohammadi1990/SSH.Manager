@@ -104,8 +104,8 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Text="Servers" Style="{DynamicResource SectionTitle}"/>
-                        <ListBox Grid.Row="1" ItemsSource="{Binding Servers}"
+                        <TextBlock Text="{Binding ServersListTitle}" Style="{DynamicResource SectionTitle}"/>
+                        <ListBox Grid.Row="1" ItemsSource="{Binding ServersView}"
                                  SelectedItem="{Binding SelectedServer}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
