@@ -157,6 +157,7 @@
             <Grid Grid.Column="2" Background="{DynamicResource BgMediumBrush}">
                 <TabControl ItemsSource="{Binding OpenServerTabs}"
                             SelectedItem="{Binding SelectedTab}"
+                            Style="{StaticResource ServerTabControl}"
                             Background="Transparent"
                             BorderThickness="0"
                             Padding="0">
@@ -180,7 +181,9 @@
                     </TabControl.Resources>
                     <TabControl.ContentTemplate>
                         <DataTemplate>
-                            <views:ServerEditorView DataContext="{Binding Server}"/>
+                            <views:ServerEditorView DataContext="{Binding Server}"
+                                                    VerticalAlignment="Stretch"
+                                                    HorizontalAlignment="Stretch"/>
                         </DataTemplate>
                     </TabControl.ContentTemplate>
                 </TabControl>

@@ -170,23 +170,27 @@
     <!-- ScrollBar -->
     <Style x:Key="ModernScrollBar" TargetType="ScrollBar">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Width" Value="6"/>
-        <Setter Property="MinWidth" Value="6"/>
+        <Setter Property="Width" Value="10"/>
+        <Setter Property="MinWidth" Value="10"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
-                    <Grid Background="Transparent" Width="6">
-                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                    <Grid x:Name="Root" Background="Transparent" Width="10">
+                        <Border x:Name="TrackBg" Background="{DynamicResource BgDarkBrush}"
+                                CornerRadius="5" Margin="1,4" Opacity="0.55"/>
+                        <Track x:Name="PART_Track" IsDirectionReversed="True" Margin="1,4">
                             <Track.Thumb>
-                                <Thumb>
+                                <Thumb MinHeight="28">
                                     <Thumb.Template>
                                         <ControlTemplate>
-                                            <Border x:Name="ThumbBd" Background="{DynamicResource BorderBrush}"
-                                                    CornerRadius="3" Margin="1,2" Opacity="0.6"/>
+                                            <Border x:Name="ThumbBd" Background="{DynamicResource BgLightBrush}"
+                                                    CornerRadius="5" Margin="1,1"/>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ThumbBd" Property="Background" Value="{DynamicResource AccentLightBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsDragging" Value="True">
                                                     <Setter TargetName="ThumbBd" Property="Background" Value="{DynamicResource AccentBrush}"/>
-                                                    <Setter TargetName="ThumbBd" Property="Opacity" Value="1"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -194,6 +198,11 @@
                                 </Thumb>
                             </Track.Thumb>
                         </Track>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TrackBg" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
@@ -203,9 +212,37 @@
     <Style TargetType="ScrollBar" BasedOn="{StaticResource ModernScrollBar}"/>
 
     <Style x:Key="ModernScrollViewer" TargetType="ScrollViewer">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
         <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
         <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
         <Setter Property="PanningMode" Value="VerticalOnly"/>
+        <Setter Property="CanContentScroll" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollViewer">
+                    <Grid Background="{TemplateBinding Background}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ScrollContentPresenter x:Name="PART_ScrollContentPresenter"
+                                                CanContentScroll="{TemplateBinding CanContentScroll}"
+                                                Content="{TemplateBinding Content}"
+                                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                Margin="{TemplateBinding Padding}"/>
+                        <ScrollBar x:Name="PART_VerticalScrollBar"
+                                   Grid.Column="1"
+                                   Style="{StaticResource ModernScrollBar}"
+                                   Orientation="Vertical"
+                                   Value="{TemplateBinding VerticalOffset, Mode=OneWay}"
+                                   Maximum="{TemplateBinding ScrollableHeight}"
+                                   ViewportSize="{TemplateBinding ViewportHeight}"
+                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                                   Margin="2,4,4,4"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="FormTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
@@ -265,6 +302,36 @@
     <Style TargetType="TabControl">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style x:Key="ServerTabControl" TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Background="{DynamicResource BgLightBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,0,0,1">
+                            <TabPanel IsItemsHost="True" Background="Transparent" Margin="8,4,8,0"/>
+                        </Border>
+                        <Border Grid.Row="1" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter x:Name="PART_SelectedContentHost"
+                                              ContentSource="SelectedContent"
+                                              VerticalAlignment="Stretch"
+                                              HorizontalAlignment="Stretch"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style TargetType="TabItem">
