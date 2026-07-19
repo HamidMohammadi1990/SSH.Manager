@@ -4,8 +4,7 @@ namespace SshManager.Services;
 
 public class ExecutionService
 {
-    private readonly SshExecutor _sshExecutor = new();
-    private readonly TelnetExecutor _telnetExecutor = new();
+    private readonly InteractiveSessionExecutor _sessionExecutor = new();
 
     public event Action<ServerExecutionResult>? ServerStarted;
     public event Action<ServerExecutionResult>? ServerCompleted;
@@ -52,46 +51,85 @@ public class ExecutionService
                 continue;
             }
 
-            var hasFailure = false;
-
-            foreach (var command in commands)
+            try
             {
-                ct.ThrowIfCancellationRequested();
-
-                CommandStarted?.Invoke(new CommandExecutionResult
+                var steps = commands.Select(c => new BatchStep
                 {
-                    CommandId = command.Id,
-                    CommandText = command.Text,
-                    Status = ExecutionStatus.Running
-                }, server.Name);
+                    Type = BatchStepType.Command,
+                    Text = c.Text
+                }).ToList();
 
+                var credential = BuildCredential(server, settings);
                 var progress = new Progress<string>(line => OutputReceived?.Invoke($"[{server.Name}] {line}"));
+                var commandIndex = 0;
 
-                CommandExecutionResult cmdResult = server.ConnectionType switch
-                {
-                    ConnectionType.Ssh => await _sshExecutor.ExecuteCommandAsync(
-                        server, command, settings, progress, ct),
-                    ConnectionType.Telnet => await _telnetExecutor.ExecuteCommandAsync(
-                        server, command, settings, progress, ct),
-                    _ => new CommandExecutionResult
+                var stepResults = await _sessionExecutor.ExecuteStepsAsync(
+                    server,
+                    credential,
+                    steps,
+                    settings.BatchStepDelayMs,
+                    settings.ConnectionTimeoutSeconds,
+                    settings.CommandTimeoutSeconds,
+                    progress,
+                    _ =>
                     {
-                        CommandId = command.Id,
-                        CommandText = command.Text,
-                        Status = ExecutionStatus.Failed,
-                        ErrorMessage = "Unknown connection type."
+                        if (commandIndex >= commands.Count) return;
+
+                        var command = commands[commandIndex++];
+                        CommandStarted?.Invoke(new CommandExecutionResult
+                        {
+                            CommandId = command.Id,
+                            CommandText = command.Text,
+                            Status = ExecutionStatus.Running
+                        }, server.Name);
+                    },
+                    ct);
+
+                var hasFailure = false;
+                for (var i = 0; i < stepResults.Count; i++)
+                {
+                    var stepResult = stepResults[i];
+                    if (i < commands.Count)
+                    {
+                        stepResult.CommandId = commands[i].Id;
+                        stepResult.CommandText = commands[i].Text;
                     }
+
+                    serverResult.Commands.Add(stepResult);
+                    CommandCompleted?.Invoke(stepResult, server.Name);
+
+                    if (stepResult.Status == ExecutionStatus.Failed)
+                        hasFailure = true;
+                }
+
+                serverResult.Status = stepResults.Count > 0 && !hasFailure
+                    ? ExecutionStatus.Success
+                    : ExecutionStatus.Failed;
+            }
+            catch (OperationCanceledException)
+            {
+                serverResult.Status = ExecutionStatus.Failed;
+                throw;
+            }
+            catch (Exception ex)
+            {
+                serverResult.Status = ExecutionStatus.Failed;
+                var failure = new CommandExecutionResult
+                {
+                    CommandId = Guid.NewGuid().ToString(),
+                    CommandText = "(session)",
+                    Status = ExecutionStatus.Failed,
+                    ErrorMessage = ex.Message,
+                    StartedAt = DateTime.Now,
+                    FinishedAt = DateTime.Now
                 };
-
-                serverResult.Commands.Add(cmdResult);
-                CommandCompleted?.Invoke(cmdResult, server.Name);
-
-                if (cmdResult.Status == ExecutionStatus.Failed)
-                    hasFailure = true;
+                serverResult.Commands.Add(failure);
+                CommandCompleted?.Invoke(failure, server.Name);
+                OutputReceived?.Invoke($"[{server.Name}] ERROR: {ex.Message}");
             }
 
             serverSw.Stop();
             serverResult.Duration = serverSw.Elapsed;
-            serverResult.Status = hasFailure ? ExecutionStatus.Failed : ExecutionStatus.Success;
             session.Servers.Add(serverResult);
             ServerCompleted?.Invoke(serverResult);
         }
@@ -99,5 +137,15 @@ public class ExecutionService
         session.FinishedAt = DateTime.Now;
         SessionCompleted?.Invoke(session);
         return session;
+    }
+
+    private static BatchCredential BuildCredential(ServerProfile server, AppSettings settings)
+    {
+        var (username, password, _) = ConnectionTestService.ResolveCredentials(server, settings);
+        return new BatchCredential
+        {
+            Username = username,
+            Password = password
+        };
     }
 }
