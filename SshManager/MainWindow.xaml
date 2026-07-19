@@ -1,0 +1,417 @@
+<Window x:Class="SshManager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SshManager.ViewModels"
+        Title="SSH Manager"
+        Width="1280" Height="800"
+        MinWidth="1024" MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgDarkBrush}"
+        Closing="Window_Closing">
+
+    <Window.DataContext>
+        <vm:MainViewModel/>
+    </Window.DataContext>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="{StaticResource BgMediumBrush}" Padding="20,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="⚡" FontSize="22" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="SSH Manager" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CurrentDate}" Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding CurrentTime}" Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="22" FontWeight="Light" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="⚙ Settings" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"
+                            Command="{Binding OpenSettingsCommand}"/>
+                    <Button Content="💾 Save" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"
+                            Command="{Binding SaveCommand}"/>
+                    <Button Content="📤 Export" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"
+                            Command="{Binding ExportDataCommand}"/>
+                    <Button Content="📥 Import" Style="{StaticResource SecondaryButton}"
+                            Command="{Binding ImportDataCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1" Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" MinWidth="220"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*" MinWidth="350"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="380" MinWidth="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Servers Panel -->
+            <Border Grid.Column="0" Background="{StaticResource BgMediumBrush}" CornerRadius="10" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Groups" Style="{StaticResource SectionTitle}"/>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <ComboBox Width="160" ItemsSource="{Binding Groups}"
+                                  SelectedItem="{Binding SelectedGroup}"
+                                  DisplayMemberPath="Name" Margin="0,0,4,0"/>
+                        <Button Content="+" Style="{StaticResource IconButton}" Command="{Binding AddGroupCommand}" ToolTip="Add Group"/>
+                        <Button Content="−" Style="{StaticResource IconButton}" Command="{Binding RemoveGroupCommand}" ToolTip="Remove Group"/>
+                    </StackPanel>
+
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Servers" Style="{StaticResource SectionTitle}"/>
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Servers}"
+                                 SelectedItem="{Binding SelectedServer}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                 Fill="{Binding ConnectionStatus, Converter={StaticResource StatusBrush}}"/>
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="11">
+                                                <Run Text="{Binding Host, Mode=OneWay}"/>
+                                                <Run Text=":"/>
+                                                <Run Text="{Binding Port, Mode=OneWay}"/>
+                                                <Run Text=" • "/>
+                                                <Run Text="{Binding ConnectionType, Converter={StaticResource ConnTypeStr}, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding Commands.Count, StringFormat={}{0} cmd}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+
+                    <StackPanel Grid.Row="3" Margin="0,8,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="+ Add" Style="{StaticResource PrimaryButton}" Margin="0,0,4,0"
+                                    Command="{Binding AddServerCommand}"/>
+                            <Button Content="Remove" Style="{StaticResource DangerButton}" Margin="0,0,4,0"
+                                    Command="{Binding RemoveServerCommand}"/>
+                            <Button Content="▲" Style="{StaticResource IconButton}" Command="{Binding MoveServerUpCommand}" ToolTip="Move Up"/>
+                            <Button Content="▼" Style="{StaticResource IconButton}" Command="{Binding MoveServerDownCommand}" ToolTip="Move Down"/>
+                        </StackPanel>
+                        <Button Content="🔍 Test All Connections" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding TestAllConnectionsCommand}"
+                                IsEnabled="{Binding IsTestingConnections, Converter={StaticResource InverseBool}}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Center: Server Details -->
+            <Border Grid.Column="2" Background="{StaticResource BgMediumBrush}" CornerRadius="10" Padding="16">
+                <Grid DataContext="{Binding SelectedServer}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Server Details" Style="{StaticResource SectionTitle}"
+                               Visibility="{Binding DataContext.SelectedServer, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource NullToVis}}"/>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding DataContext.SelectedServer, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource NullToVis}}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Name" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"
+                                             TextChanged="ServerField_Changed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Group" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding DataContext.GroupOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              SelectedValue="{Binding GroupId}" SelectedValuePath="Id"
+                                              DisplayMemberPath="Name" Margin="0,0,0,10"
+                                              SelectionChanged="ServerField_Changed"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Host / IP" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"
+                                             TextChanged="ServerField_Changed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Port" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"
+                                             TextChanged="ServerField_Changed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Type" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding DataContext.ConnectionTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              SelectedItem="{Binding ConnectionType}" Margin="0,0,0,10"
+                                              SelectionChanged="ServerField_Changed"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Description" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"
+                                     TextWrapping="Wrap" AcceptsReturn="True" MinHeight="50"
+                                     TextChanged="ServerField_Changed"/>
+
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,12">
+                                <Run Text="Created: "/>
+                                <Run Text="{Binding CreatedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm}', Mode=OneWay}"/>
+                            </TextBlock>
+
+                            <Border Background="{StaticResource BgCardBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <CheckBox Content="Use custom credentials for this server"
+                                              IsChecked="{Binding UseCustomCredentials}" Margin="0,0,0,10"
+                                              Checked="ServerField_Changed" Unchecked="ServerField_Changed"/>
+                                    <StackPanel IsEnabled="{Binding UseCustomCredentials}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Username" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Text="{Binding CustomUsername, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextChanged="ServerField_Changed"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Password" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Text="{Binding CustomPassword, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextChanged="ServerField_Changed"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Private Key (optional)" Style="{StaticResource FieldLabel}"/>
+                                                <TextBox Text="{Binding PrivateKeyPath, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsReadOnly="True" TextChanged="ServerField_Changed"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="Browse" Style="{StaticResource SecondaryButton}"
+                                                    VerticalAlignment="Bottom" Margin="8,0,0,0"
+                                                    Command="{Binding DataContext.BrowsePrivateKeyCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="Commands" Style="{StaticResource SectionTitle}"/>
+                            <Grid Height="200">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ListBox ItemsSource="{Binding Commands}" SelectedItem="{Binding DataContext.SelectedCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="Transparent" BorderThickness="0"
+                                                     FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                     TextChanged="CommandField_Changed"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button Content="+ Add" Style="{StaticResource PrimaryButton}" Margin="0,0,4,0"
+                                            Command="{Binding DataContext.AddCommandCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Button Content="Remove" Style="{StaticResource DangerButton}" Margin="0,0,4,0"
+                                            Command="{Binding DataContext.RemoveCommandCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Button Content="▲" Style="{StaticResource IconButton}"
+                                            Command="{Binding DataContext.MoveCommandUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Button Content="▼" Style="{StaticResource IconButton}"
+                                            Command="{Binding DataContext.MoveCommandDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <TextBlock Grid.Row="1" Text="Select a server to view details"
+                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="14"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding DataContext.SelectedServer, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource NullToVis}, ConverterParameter=Invert}"/>
+                </Grid>
+            </Border>
+
+            <!-- Right: Execution Panel -->
+            <Border Grid.Column="4" Background="{StaticResource BgMediumBrush}" CornerRadius="10" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Execution" Style="{StaticResource SectionTitle}"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+                        <Button Content="▶ Run All" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
+                                Command="{Binding ExecuteAllCommand}"
+                                IsEnabled="{Binding IsExecuting, Converter={StaticResource InverseBool}}"/>
+                        <Button Content="⏹ Cancel" Style="{StaticResource DangerButton}" Margin="0,0,8,0"
+                                Command="{Binding CancelExecutionCommand}"
+                                Visibility="{Binding IsExecuting, Converter={StaticResource BoolToVis}}"/>
+                        <Button Content="Clear" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding ClearOutputCommand}"/>
+                    </StackPanel>
+
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="Live Output">
+                            <ListBox ItemsSource="{Binding OutputLines}" FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                     Background="{StaticResource BgDarkBrush}" Margin="0,8,0,0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock TextWrapping="Wrap">
+                                            <Run Text="{Binding Timestamp, StringFormat='[{0:HH:mm:ss}] ', Mode=OneWay}"
+                                                 Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <Run Text="{Binding Text, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </TabItem>
+                        <TabItem Header="Results">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                <ItemsControl ItemsSource="{Binding ExecutionResults}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Expander IsExpanded="{Binding IsExpanded}" Margin="0,0,0,6">
+                                                <Expander.Header>
+                                                    <Grid Width="300">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="10"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                                 Fill="{Binding Status, Converter={StaticResource ExecStatusBrush}}"/>
+                                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                            <TextBlock Text="{Binding ServerName}" FontWeight="SemiBold" FontSize="12"/>
+                                                            <TextBlock Text="{Binding GroupName}" FontSize="10"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2" FontSize="11"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                                   Text="{Binding Duration, Converter={StaticResource TimeSpanStr}}"/>
+                                                    </Grid>
+                                                </Expander.Header>
+                                                <ItemsControl ItemsSource="{Binding Commands}" Margin="16,4,0,4">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Background="{StaticResource BgCardBrush}" CornerRadius="6"
+                                                                    Padding="10" Margin="0,0,0,4">
+                                                                <StackPanel>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="10"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                                                                 Fill="{Binding Status, Converter={StaticResource ExecStatusBrush}}"/>
+                                                                        <TextBlock Grid.Column="1" Text="{Binding CommandText}"
+                                                                                   FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                                                                   Margin="6,0,0,0" TextWrapping="Wrap"/>
+                                                                        <TextBlock Grid.Column="2" FontSize="10"
+                                                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                   Text="{Binding Duration, Converter={StaticResource TimeSpanStr}}"/>
+                                                                    </Grid>
+                                                                    <TextBlock Text="{Binding ErrorMessage}" Foreground="#F44336"
+                                                                               FontSize="11" Margin="16,4,0,0" TextWrapping="Wrap"
+                                                                               Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVis}}"/>
+                                                                    <TextBlock Text="{Binding Output}" FontFamily="{StaticResource MonoFont}"
+                                                                               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                               Margin="16,4,0,0" TextWrapping="Wrap" MaxHeight="120"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Expander>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+
+                    <Border Grid.Row="3" Background="{StaticResource BgCardBrush}" CornerRadius="6" Padding="10" Margin="0,8,0,0"
+                            Visibility="{Binding HasExecutionResults, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding ExecutionSummary}" FontSize="12"
+                                   Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{StaticResource BgMediumBrush}" Padding="16,8">
+            <Grid>
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,16,0">
+                        <Run Text="Servers: "/>
+                        <Run Text="{Binding Servers.Count, Mode=OneWay}"/>
+                    </TextBlock>
+                    <TextBlock Foreground="{StaticResource AccentLightBrush}" FontSize="12"
+                               Visibility="{Binding IsExecuting, Converter={StaticResource BoolToVis}}">
+                        <Run Text="● Executing..."/>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
