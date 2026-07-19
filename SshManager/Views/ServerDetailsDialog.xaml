@@ -1,0 +1,249 @@
+<Window x:Class="SshManager.Views.ServerDetailsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding WindowTitle}"
+        Width="860" Height="720"
+        MinWidth="760" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BgDarkBrush}"
+        Loaded="Window_Loaded">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="{Binding WindowTitle}" FontSize="22" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13">
+                    <Run Text="{Binding Report.Host, Mode=OneWay, TargetNullValue=—}"/>
+                    <Run Text=":"/>
+                    <Run Text="{Binding Report.Port, Mode=OneWay, TargetNullValue=—}"/>
+                    <Run Text="  •  "/>
+                    <Run Text="{Binding Report.ConnectionType, Converter={StaticResource ConnTypeStr}, Mode=OneWay}"/>
+                    <Run Text="  •  Collected "/>
+                    <Run Text="{Binding Report.CollectedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}', Mode=OneWay}"/>
+                </TextBlock>
+            </StackPanel>
+            <Button Grid.Column="1" Content="↻ Refresh" Style="{DynamicResource SecondaryButton}"
+                    Command="{Binding RefreshCommand}" VerticalAlignment="Top"
+                    IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBool}}"/>
+        </Grid>
+
+        <!-- Error banner -->
+        <Border Grid.Row="1" Background="#33F44336" BorderBrush="#F44336" BorderThickness="1"
+                CornerRadius="8" Padding="12" Margin="0,0,0,12"
+                Visibility="{Binding Report.ErrorMessage, Converter={StaticResource NullToVis}}">
+            <TextBlock Text="{Binding Report.ErrorMessage}" Foreground="#FFCDD2" TextWrapping="Wrap"/>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <ScrollViewer Style="{DynamicResource ModernScrollViewer}" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- Overview cards -->
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="{DynamicResource BgCardBrush}" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Operating System" Style="{DynamicResource FieldLabel}"/>
+                                <TextBlock Text="{Binding Report.OperatingSystem}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                <TextBlock Text="{Binding Report.OsVersion}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap">
+                                    <Run Text="Kernel: "/>
+                                    <Run Text="{Binding Report.Kernel, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Background="{DynamicResource BgCardBrush}" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="System" Style="{DynamicResource FieldLabel}"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,6,0,0" FontSize="13">
+                                    <Run Text="Host: "/><Run Text="{Binding Report.Hostname, Mode=OneWay}" FontWeight="SemiBold"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0">
+                                    <Run Text="User: "/><Run Text="{Binding Report.CurrentUser, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap">
+                                    <Run Text="Uptime: "/><Run Text="{Binding Report.Uptime, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0">
+                                    <Run Text="Arch: "/><Run Text="{Binding Report.Architecture, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="4" Background="{DynamicResource BgCardBrush}" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Processor" Style="{DynamicResource FieldLabel}"/>
+                                <TextBlock Text="{Binding Report.CpuModel}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,6,0,0">
+                                    <Run Text="Cores: "/><Run Text="{Binding Report.CpuCores, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0">
+                                    <Run Text="Load avg: "/><Run Text="{Binding Report.LoadAverage, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Resource usage -->
+                    <TextBlock Text="Resource Usage" Style="{DynamicResource SectionTitle}" Margin="0,0,0,10"/>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="{DynamicResource BgCardBrush}" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Memory (RAM)" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Grid.Column="1" FontWeight="SemiBold" Foreground="{DynamicResource AccentLightBrush}">
+                                        <Run Text="{Binding Report.MemoryUsagePercent, Mode=OneWay, StringFormat={}{0:0.#}}"/>
+                                        <Run Text="%"/>
+                                    </TextBlock>
+                                </Grid>
+                                <ProgressBar Style="{DynamicResource UsageProgressBar}" Margin="0,10,0,8"
+                                             Value="{Binding Report.MemoryUsagePercent}"
+                                             Foreground="{Binding Report.MemoryUsagePercent, Converter={StaticResource UsageBrush}}"/>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12">
+                                    <Run Text="{Binding Report.MemoryUsedBytes, Converter={StaticResource BytesStr}, Mode=OneWay}"/>
+                                    <Run Text=" used of "/>
+                                    <Run Text="{Binding Report.MemoryTotalBytes, Converter={StaticResource BytesStr}, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Background="{DynamicResource BgCardBrush}" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="CPU Usage" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Grid.Column="1" FontWeight="SemiBold" Foreground="{DynamicResource AccentLightBrush}"
+                                               Text="{Binding Report.CpuUsagePercent, Mode=OneWay, StringFormat={}{0:0.#}%}"/>
+                                </Grid>
+                                <ProgressBar Style="{DynamicResource UsageProgressBar}" Margin="0,10,0,8"
+                                             Value="{Binding Report.CpuUsagePercent, Mode=OneWay, FallbackValue=0}"
+                                             Foreground="{Binding Report.CpuUsagePercent, Converter={StaticResource UsageBrush}}"/>
+                                <TextBlock Text="Sampled over 1 second via SSH" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Disks -->
+                    <TextBlock Text="Storage" Style="{DynamicResource SectionTitle}" Margin="0,0,0,10"/>
+                    <Border Background="{DynamicResource BgCardBrush}" CornerRadius="10" Padding="16" Margin="0,0,0,16">
+                        <ItemsControl ItemsSource="{Binding Report.Disks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}">
+                                                <Run Text="{Binding MountPoint, Mode=OneWay}"/>
+                                                <Run Text="  (" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                <Run Text="{Binding Name, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                <Run Text=")" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentLightBrush}" FontWeight="SemiBold">
+                                                <Run Text="{Binding UsagePercent, Mode=OneWay, StringFormat={}{0:0.#}}"/>
+                                                <Run Text="%"/>
+                                            </TextBlock>
+                                        </Grid>
+                                        <ProgressBar Grid.Row="1" Style="{DynamicResource UsageProgressBar}" Margin="0,8,0,6"
+                                                     Value="{Binding UsagePercent}"
+                                                     Foreground="{Binding UsagePercent, Converter={StaticResource UsageBrush}}"/>
+                                        <TextBlock Grid.Row="2" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12">
+                                            <Run Text="{Binding UsedBytes, Converter={StaticResource BytesStr}, Mode=OneWay}"/>
+                                            <Run Text=" used of "/>
+                                            <Run Text="{Binding TotalBytes, Converter={StaticResource BytesStr}, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+
+                    <!-- Detail sections -->
+                    <ItemsControl ItemsSource="{Binding Report.Sections}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,16">
+                                    <TextBlock Text="{Binding Title}" Style="{DynamicResource SectionTitle}" Margin="0,0,0,8"/>
+                                    <Border Background="{DynamicResource BgCardBrush}" CornerRadius="10" Padding="12">
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                   FontSize="12" TextWrapping="Wrap"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Loading overlay -->
+            <Border Background="#CC1E1E2E" CornerRadius="8"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="Collecting server information..." FontSize="16"
+                               Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Connecting via SSH and running system queries..."
+                               Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
+                               HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Close" Style="{DynamicResource PrimaryButton}" Width="100" IsDefault="True" Click="Close_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

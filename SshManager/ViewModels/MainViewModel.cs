@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ConnectionTestService _connectionTestService = new();
     private readonly ExecutionService _executionService = new();
     private readonly BatchExecutionService _batchExecutionService = new();
+    private readonly ServerDetailsService _serverDetailsService = new();
     private readonly DispatcherTimer _clockTimer;
     private CancellationTokenSource? _executionCts;
     private BatchJob? _loadedBatchJob;
@@ -442,6 +443,20 @@ public partial class MainViewModel : ObservableObject
         ReorderServers();
         SelectedServer = ServersView.Cast<ServerItemViewModel>().FirstOrDefault();
         MarkDirty();
+    }
+
+    [RelayCommand]
+    private void ShowServerDetails()
+    {
+        if (SelectedServer == null) return;
+
+        var groupName = Groups.FirstOrDefault(g => g.Id == SelectedServer.GroupId)?.Name ?? "(No Group)";
+        var dialog = new ServerDetailsDialog
+        {
+            Owner = Application.Current.MainWindow,
+            DataContext = new ServerDetailsViewModel(SelectedServer, BuildSettings(), groupName, _serverDetailsService)
+        };
+        dialog.ShowDialog();
     }
 
     [RelayCommand]

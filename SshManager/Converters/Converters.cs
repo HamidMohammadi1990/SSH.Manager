@@ -133,3 +133,68 @@ public class ConnectionTypeToStringConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+public class BytesToStringConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not long bytes || bytes <= 0)
+            return "—";
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var size = (double)bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        return unit == 0
+            ? $"{bytes} B"
+            : $"{size:0.##} {units[unit]}";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class UsageToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var percent = value switch
+        {
+            double d => d,
+            float f => f,
+            int i => i,
+            _ => 0d
+        };
+
+        var color = percent switch
+        {
+            >= 90 => Color.FromRgb(244, 67, 54),
+            >= 75 => Color.FromRgb(255, 193, 7),
+            _ => Color.FromRgb(124, 77, 255)
+        };
+
+        return new SolidColorBrush(color);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class PercentToWidthConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length < 2 || values[0] is not double percent || values[1] is not double totalWidth)
+            return 0d;
+
+        return Math.Max(0, Math.Min(totalWidth, totalWidth * percent / 100d));
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

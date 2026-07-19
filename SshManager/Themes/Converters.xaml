@@ -10,5 +10,8 @@
     <conv:NullToVisibilityConverter x:Key="NullToVis"/>
     <conv:TimeSpanToStringConverter x:Key="TimeSpanStr"/>
     <conv:ConnectionTypeToStringConverter x:Key="ConnTypeStr"/>
+    <conv:BytesToStringConverter x:Key="BytesStr"/>
+    <conv:UsageToBrushConverter x:Key="UsageBrush"/>
+    <conv:PercentToWidthConverter x:Key="PercentWidth"/>
 
 </ResourceDictionary>

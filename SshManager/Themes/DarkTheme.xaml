@@ -337,6 +337,13 @@
     <Style TargetType="ContextMenu" BasedOn="{StaticResource DarkContextMenu}"/>
     <Style TargetType="MenuItem" BasedOn="{StaticResource DarkMenuItem}"/>
 
+    <Style x:Key="UsageProgressBar" TargetType="ProgressBar">
+        <Setter Property="Height" Value="10"/>
+        <Setter Property="Maximum" Value="100"/>
+        <Setter Property="Background" Value="{StaticResource BgDarkBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
     <Style x:Key="ServerTabItem" TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>

@@ -110,6 +110,9 @@
                                  PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown">
                             <ListBox.ContextMenu>
                                 <ContextMenu Style="{DynamicResource DarkContextMenu}">
+                                    <MenuItem Header="View Details" Style="{DynamicResource DarkMenuItem}"
+                                              Command="{Binding ShowServerDetailsCommand}"/>
+                                    <Separator Style="{DynamicResource DarkMenuSeparator}"/>
                                     <MenuItem Header="Remove Server" Style="{DynamicResource DarkMenuItem}"
                                               Command="{Binding RemoveServerCommand}"/>
                                 </ContextMenu>
