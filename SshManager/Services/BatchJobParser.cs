@@ -123,7 +123,7 @@ public static class BatchJobParser
             case "stepdelayms":
                 if (!int.TryParse(value, out var delay) || delay < 0)
                     throw new FormatException($"Invalid step delay: '{value}'");
-                defaults.StepDelayMs = delay;
+                defaults.StepDelayOverrideMs = delay;
                 break;
             default:
                 throw new FormatException($"Unknown defaults key: '{key}'");

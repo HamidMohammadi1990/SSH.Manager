@@ -9,6 +9,7 @@ public partial class SettingsDialog : Window
     public string DefaultPassword { get; set; } = string.Empty;
     public int ConnectionTimeout { get; set; } = 30;
     public int CommandTimeout { get; set; } = 60;
+    public int BatchStepDelay { get; set; } = 500;
 
     public SettingsDialog()
     {
@@ -19,6 +20,7 @@ public partial class SettingsDialog : Window
             PasswordBox.Password = DefaultPassword;
             ConnectionTimeoutBox.Text = ConnectionTimeout.ToString();
             CommandTimeoutBox.Text = CommandTimeout.ToString();
+            BatchStepDelayBox.Text = BatchStepDelay.ToString();
         };
     }
 
@@ -39,8 +41,15 @@ public partial class SettingsDialog : Window
             return;
         }
 
+        if (!int.TryParse(BatchStepDelayBox.Text, out var batchDelay) || batchDelay < 0)
+        {
+            DialogService.ShowWarning("Batch step delay must be zero or a positive number.", "Validation");
+            return;
+        }
+
         ConnectionTimeout = connTimeout;
         CommandTimeout = cmdTimeout;
+        BatchStepDelay = batchDelay;
         DialogResult = true;
         Close();
     }

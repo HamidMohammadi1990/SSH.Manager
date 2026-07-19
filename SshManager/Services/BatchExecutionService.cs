@@ -13,9 +13,11 @@ public class BatchExecutionService
     public event Action<string>? OutputReceived;
     public event Action<ExecutionSession>? SessionCompleted;
 
-    public async Task<ExecutionSession> ExecuteAsync(BatchJob job, CancellationToken ct = default)
+    public async Task<ExecutionSession> ExecuteAsync(BatchJob job, AppSettings settings, CancellationToken ct = default)
     {
         var session = new ExecutionSession { StartedAt = DateTime.Now };
+        var stepDelayMs = job.Defaults.ResolveStepDelayMs(settings.BatchStepDelayMs);
+        var connectionTimeoutSeconds = settings.ConnectionTimeoutSeconds;
 
         foreach (var host in job.Targets)
         {
@@ -52,7 +54,9 @@ public class BatchExecutionService
                     server,
                     job.Credential,
                     job.Steps,
-                    job.Defaults.StepDelayMs,
+                    stepDelayMs,
+                    connectionTimeoutSeconds,
+                    settings.CommandTimeoutSeconds,
                     progress,
                     step =>
                     {

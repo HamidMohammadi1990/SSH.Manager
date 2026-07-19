@@ -28,6 +28,12 @@ public class BatchDefaults
     public ConnectionType ConnectionType { get; set; } = ConnectionType.Telnet;
     public int Port { get; set; } = 23;
     public int StepDelayMs { get; set; } = 500;
+
+    /// <summary>When set, overrides the application default batch step delay.</summary>
+    public int? StepDelayOverrideMs { get; set; }
+
+    public int ResolveStepDelayMs(int appDefaultMs) =>
+        StepDelayOverrideMs ?? appDefaultMs;
 }
 
 public enum BatchStepType

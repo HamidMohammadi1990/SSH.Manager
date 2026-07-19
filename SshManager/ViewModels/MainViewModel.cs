@@ -35,6 +35,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _defaultPassword = string.Empty;
     [ObservableProperty] private int _connectionTimeoutSeconds = 30;
     [ObservableProperty] private int _commandTimeoutSeconds = 60;
+    [ObservableProperty] private int _batchStepDelayMs = 500;
     [ObservableProperty] private ServerItemViewModel? _selectedServer;
     [ObservableProperty] private ServerTabViewModel? _selectedTab;
     [ObservableProperty] private GroupItemViewModel? _selectedGroup;
@@ -219,6 +220,7 @@ public partial class MainViewModel : ObservableObject
             : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
+        BatchStepDelayMs = data.Settings.BatchStepDelayMs > 0 ? data.Settings.BatchStepDelayMs : 500;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))
@@ -253,6 +255,7 @@ public partial class MainViewModel : ObservableObject
                     : CredentialService.Encrypt(DefaultPassword),
                 ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
                 CommandTimeoutSeconds = CommandTimeoutSeconds,
+                BatchStepDelayMs = BatchStepDelayMs,
                 Theme = AppTheme.Dark
             },
             Groups = Groups.Select(g => g.ToModel()).OrderBy(g => g.Order).ToList(),
@@ -614,7 +617,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            await _batchExecutionService.ExecuteAsync(_loadedBatchJob, _executionCts.Token);
+            await _batchExecutionService.ExecuteAsync(_loadedBatchJob, BuildSettings(), _executionCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -664,6 +667,7 @@ public partial class MainViewModel : ObservableObject
                     ? null : CredentialService.Encrypt(DefaultPassword),
                 ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
                 CommandTimeoutSeconds = CommandTimeoutSeconds,
+                BatchStepDelayMs = BatchStepDelayMs,
                 Theme = AppTheme.Dark
             },
             Groups = Groups.Select(g => g.ToModel()).ToList(),
@@ -737,7 +741,8 @@ public partial class MainViewModel : ObservableObject
             DefaultUsername = DefaultUsername,
             DefaultPassword = DefaultPassword,
             ConnectionTimeout = ConnectionTimeoutSeconds,
-            CommandTimeout = CommandTimeoutSeconds
+            CommandTimeout = CommandTimeoutSeconds,
+            BatchStepDelay = BatchStepDelayMs
         };
 
         if (dialog.ShowDialog() == true)
@@ -746,6 +751,7 @@ public partial class MainViewModel : ObservableObject
             DefaultPassword = dialog.DefaultPassword;
             ConnectionTimeoutSeconds = dialog.ConnectionTimeout;
             CommandTimeoutSeconds = dialog.CommandTimeout;
+            BatchStepDelayMs = dialog.BatchStepDelay;
             MarkDirty();
         }
     }
@@ -760,7 +766,8 @@ public partial class MainViewModel : ObservableObject
         DefaultPasswordEncrypted = string.IsNullOrEmpty(DefaultPassword)
             ? null : CredentialService.Encrypt(DefaultPassword),
         ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
-        CommandTimeoutSeconds = CommandTimeoutSeconds
+        CommandTimeoutSeconds = CommandTimeoutSeconds,
+        BatchStepDelayMs = BatchStepDelayMs
     };
 
     private void ApplyImportedData(AppData data)
@@ -770,6 +777,7 @@ public partial class MainViewModel : ObservableObject
             ? CredentialService.Decrypt(data.Settings.DefaultPasswordEncrypted) : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
+        BatchStepDelayMs = data.Settings.BatchStepDelayMs > 0 ? data.Settings.BatchStepDelayMs : 500;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))

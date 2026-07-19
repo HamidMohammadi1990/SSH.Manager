@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
-        Width="480" Height="420"
+        Width="500" Height="520"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource BgDarkBrush}">
@@ -15,38 +15,49 @@
 
         <TextBlock Text="Application Settings" Style="{DynamicResource SectionTitle}" FontSize="18"/>
 
-        <StackPanel Grid.Row="1" Margin="0,8,0,0">
-            <TextBlock Text="Default Credentials" Style="{DynamicResource SectionTitle}"/>
-            <TextBlock Text="Used when a server has no custom credentials set." 
-                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,12"/>
+        <ScrollViewer Grid.Row="1" Style="{DynamicResource ModernScrollViewer}" Margin="0,8,0,0">
+            <StackPanel>
+                <TextBlock Text="Default Credentials" Style="{DynamicResource SectionTitle}"/>
+                <TextBlock Text="Used when a server has no custom credentials set."
+                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,12"/>
 
-            <TextBlock Text="Username" Style="{DynamicResource FieldLabel}"/>
-            <TextBox x:Name="UsernameBox" Margin="0,0,0,12"/>
+                <TextBlock Text="Username" Style="{DynamicResource FieldLabel}"/>
+                <TextBox x:Name="UsernameBox" Style="{DynamicResource FormTextBox}" Margin="0,0,0,12"/>
 
-            <TextBlock Text="Password" Style="{DynamicResource FieldLabel}"/>
-            <PasswordBox x:Name="PasswordBox" Margin="0,0,0,20"/>
+                <TextBlock Text="Password" Style="{DynamicResource FieldLabel}"/>
+                <PasswordBox x:Name="PasswordBox" Margin="0,0,0,20"/>
 
-            <TextBlock Text="Timeouts" Style="{DynamicResource SectionTitle}"/>
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="Connection Timeout (seconds)" Style="{DynamicResource FieldLabel}"/>
-                    <TextBox x:Name="ConnectionTimeoutBox"/>
-                </StackPanel>
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="Command Timeout (seconds)" Style="{DynamicResource FieldLabel}"/>
-                    <TextBox x:Name="CommandTimeoutBox"/>
-                </StackPanel>
-            </Grid>
-        </StackPanel>
+                <TextBlock Text="Timeouts &amp; Delays" Style="{DynamicResource SectionTitle}"/>
+                <TextBlock Text="Connection timeout applies to SSH/Telnet connect. Command timeout applies to each Run All command. Step delay applies to batch jobs unless overridden in the batch file."
+                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Connection Timeout (seconds)" Style="{DynamicResource FieldLabel}"/>
+                        <TextBox x:Name="ConnectionTimeoutBox" Style="{DynamicResource FormTextBox}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Command Timeout (seconds)" Style="{DynamicResource FieldLabel}"/>
+                        <TextBox x:Name="CommandTimeoutBox" Style="{DynamicResource FormTextBox}"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Batch Step Delay (milliseconds)" Style="{DynamicResource FieldLabel}"/>
+                <TextBox x:Name="BatchStepDelayBox" Style="{DynamicResource FormTextBox}" Margin="0,0,0,8"/>
+                <TextBlock Text="Pause between batch commands. Override per file with delay= in @defaults."
+                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Cancel" Style="{DynamicResource SecondaryButton}" Width="100" Margin="0,0,8,0" Click="Cancel_Click"/>
-            <Button Content="Save" Style="{DynamicResource PrimaryButton}" Width="100" Click="Save_Click"/>
+            <Button Content="Apply" Style="{DynamicResource PrimaryButton}" Width="100" Click="Save_Click"
+                    ToolTip="Apply settings to the app. Use the header Save button to write them to disk."/>
         </StackPanel>
     </Grid>
 </Window>

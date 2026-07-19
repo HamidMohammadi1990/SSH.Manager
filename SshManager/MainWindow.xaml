@@ -49,7 +49,8 @@
                     <Button Content="⚙ Settings" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
                             Command="{Binding OpenSettingsCommand}"/>
                     <Button Content="💾 Save" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
-                            Command="{Binding SaveCommand}"/>
+                            Command="{Binding SaveCommand}"
+                            ToolTip="Save servers, groups, and settings to disk (%AppData%\SshManager\data.json)"/>
                     <Button Content="📤 Export" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
                             Command="{Binding ExportDataCommand}"/>
                     <Button Content="📥 Import" Style="{DynamicResource SecondaryButton}"
