@@ -48,29 +48,29 @@ public partial class MainWindow : Window
     private void ServerList_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListBox listBox) return;
+        if (FindListBoxItem(listBox, e.OriginalSource) is not ListBoxItem { DataContext: ServerItemViewModel server })
+            return;
 
-        var element = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
-        while (element != null && element is not ListBoxItem)
-            element = VisualTreeHelper.GetParent(element);
-
-        if (element is ListBoxItem { DataContext: ServerItemViewModel server })
-            ViewModel.EnsureServerEditorOpen(server);
+        ViewModel.EnsureServerEditorOpen(server);
     }
 
     private void ServerList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListBox listBox) return;
+        if (FindListBoxItem(listBox, e.OriginalSource) is not ListBoxItem item)
+            return;
 
-        var element = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
-        while (element != null && element is not ListBoxItem)
-            element = VisualTreeHelper.GetParent(element);
+        ViewModel.BeginContextMenuSelection();
+        item.IsSelected = true;
+        item.Focus();
+    }
 
-        if (element is ListBoxItem item)
-        {
-            ViewModel.BeginContextMenuSelection();
-            item.IsSelected = true;
-            item.Focus();
-        }
+    private static ListBoxItem? FindListBoxItem(ListBox listBox, object? source)
+    {
+        if (source is not DependencyObject element)
+            return null;
+
+        return ItemsControl.ContainerFromElement(listBox, element) as ListBoxItem;
     }
 
     private async void ViewDetailsMenuItem_Click(object sender, RoutedEventArgs e)
