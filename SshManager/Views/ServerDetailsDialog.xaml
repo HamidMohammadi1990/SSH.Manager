@@ -48,7 +48,8 @@
         </Border>
 
         <Grid Grid.Row="2">
-            <ScrollViewer Style="{DynamicResource ModernScrollViewer}" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer Style="{DynamicResource ModernScrollViewer}" VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
                 <StackPanel>
                     <!-- Overview cards -->
                     <Grid Margin="0,0,0,16">
@@ -151,7 +152,7 @@
                                                Text="{Binding Report.CpuUsagePercent, Mode=OneWay, StringFormat={}{0:0.#}%}"/>
                                 </Grid>
                                 <ProgressBar Style="{DynamicResource UsageProgressBar}" Margin="0,10,0,8"
-                                             Value="{Binding Report.CpuUsagePercent, Mode=OneWay, FallbackValue=0}"
+                                             Value="{Binding Report.CpuUsagePercent, Mode=OneWay, TargetNullValue=0}"
                                              Foreground="{Binding Report.CpuUsagePercent, Converter={StaticResource UsageBrush}}"/>
                                 <TextBlock Text="Sampled over ~0.3s via SSH" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/>
                             </StackPanel>
@@ -234,8 +235,7 @@
             <Border Background="#CC1E1E2E" CornerRadius="8"
                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MinWidth="320">
-                    <ProgressBar IsIndeterminate="True" Height="4" Width="240"
-                                 Style="{DynamicResource UsageProgressBar}" Margin="0,0,0,16"/>
+                    <ProgressBar IsIndeterminate="True" Height="4" Width="240" Margin="0,0,0,16"/>
                     <TextBlock Text="در حال بارگذاری اطلاعات سرور..." FontSize="16" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     <TextBlock Text="{Binding StatusMessage}"

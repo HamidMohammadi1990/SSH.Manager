@@ -20,19 +20,20 @@ public partial class ServerDetailsDialog : Window
 
         _loadStarted = true;
 
-        // Let the window paint first, then start background collection.
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, () => _ = LoadSafeAsync(vm));
+        // Paint the loading overlay first, then fetch data off the UI thread.
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _ = LoadSafeAsync(vm));
     }
 
     private async Task LoadSafeAsync(ServerDetailsViewModel vm)
     {
         try
         {
-            await vm.LoadAsync();
+            await vm.LoadAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
             vm.StatusMessage = ex.Message;
+            vm.IsLoading = false;
         }
     }
 

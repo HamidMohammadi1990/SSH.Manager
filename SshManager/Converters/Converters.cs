@@ -168,6 +168,7 @@ public class UsageToBrushConverter : IValueConverter
             double d => d,
             float f => f,
             int i => i,
+            null => 0d,
             _ => 0d
         };
 

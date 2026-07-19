@@ -112,7 +112,7 @@
                                 <ContextMenu Style="{DynamicResource DarkContextMenu}"
                                              DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                     <MenuItem Header="View Details" Style="{DynamicResource DarkMenuItem}"
-                                              Command="{Binding ShowServerDetailsCommand}"/>
+                                              Click="ViewDetailsMenuItem_Click"/>
                                     <Separator Style="{DynamicResource DarkMenuSeparator}"/>
                                     <MenuItem Header="Remove Server" Style="{DynamicResource DarkMenuItem}"
                                               Command="{Binding RemoveServerCommand}"/>

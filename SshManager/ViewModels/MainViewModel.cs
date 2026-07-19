@@ -451,26 +451,24 @@ public partial class MainViewModel : ObservableObject
         MarkDirty();
     }
 
-    [RelayCommand]
-    private void ShowServerDetails()
+    public void OpenServerDetails(ServerItemViewModel server)
     {
-        if (SelectedServer == null) return;
-
-        var server = SelectedServer;
-        var groupName = Groups.FirstOrDefault(g => g.Id == server.GroupId)?.Name ?? "(No Group)";
-        var settings = BuildSettings();
-
-        // Context menu must close before ShowDialog — opening modal from menu freezes WPF.
-        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, () =>
+        try
         {
+            var groupName = Groups.FirstOrDefault(g => g.Id == server.GroupId)?.Name ?? "(No Group)";
+            var settings = BuildSettings();
             var vm = new ServerDetailsViewModel(server, settings, groupName, _serverDetailsService);
             var dialog = new ServerDetailsDialog
             {
                 Owner = Application.Current.MainWindow,
                 DataContext = vm
             };
-            dialog.ShowDialog();
-        });
+            dialog.Show();
+        }
+        catch (Exception ex)
+        {
+            DialogService.ShowError(ex.Message, "Server Details");
+        }
     }
 
     [RelayCommand]

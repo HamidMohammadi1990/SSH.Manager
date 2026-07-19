@@ -44,18 +44,12 @@ public partial class ServerDetailsViewModel : ObservableObject
 
         try
         {
-            var report = await Task.Run(async () =>
-            {
-                token.ThrowIfCancellationRequested();
-
-                string? enc = null;
-                if (_server.UseCustomCredentials && !string.IsNullOrEmpty(_server.CustomPassword))
-                    enc = CredentialService.Encrypt(_server.CustomPassword);
-
-                var model = _server.ToModel(enc);
-                return await _service.CollectAsync(
-                    model, _settings, _groupName, _server.Commands.Count, token).ConfigureAwait(false);
-            }, token).ConfigureAwait(true);
+            var report = await _service.CollectAsync(
+                await Task.Run(() => BuildServerModel(), token).ConfigureAwait(true),
+                _settings,
+                _groupName,
+                _server.Commands.Count,
+                token).ConfigureAwait(true);
 
             Report = report;
             StatusMessage = report.IsSuccess
@@ -81,6 +75,14 @@ public partial class ServerDetailsViewModel : ObservableObject
             _loadCts?.Dispose();
             _loadCts = null;
         }
+    }
+
+    private ServerProfile BuildServerModel()
+    {
+        string? enc = null;
+        if (_server.UseCustomCredentials && !string.IsNullOrEmpty(_server.CustomPassword))
+            enc = CredentialService.Encrypt(_server.CustomPassword);
+        return _server.ToModel(enc);
     }
 
     public void CancelLoading() => _loadCts?.Cancel();

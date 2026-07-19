@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using SshManager.ViewModels;
 
 namespace SshManager;
@@ -58,5 +59,18 @@ public partial class MainWindow : Window
             item.IsSelected = true;
             item.Focus();
         }
+    }
+
+    private void ViewDetailsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (ServerListBox.SelectedItem is not ServerItemViewModel server)
+            return;
+
+        if (sender is MenuItem { Parent: ContextMenu menu })
+            menu.IsOpen = false;
+
+        // WPF freezes if a modal dialog opens while the context menu is still closing.
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+            ViewModel.OpenServerDetails(server));
     }
 }
