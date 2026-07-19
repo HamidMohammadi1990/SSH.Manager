@@ -45,6 +45,18 @@ public partial class MainWindow : Window
 
     private void GroupField_Changed(object sender, TextChangedEventArgs e) => ViewModel.OnGroupFieldChanged();
 
+    private void ServerList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox listBox) return;
+
+        var element = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
+        while (element != null && element is not ListBoxItem)
+            element = VisualTreeHelper.GetParent(element);
+
+        if (element is ListBoxItem { DataContext: ServerItemViewModel server })
+            ViewModel.EnsureServerEditorOpen(server);
+    }
+
     private void ServerList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListBox listBox) return;
@@ -61,7 +73,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ViewDetailsMenuItem_Click(object sender, RoutedEventArgs e)
+    private async void ViewDetailsMenuItem_Click(object sender, RoutedEventArgs e)
     {
         if (ServerListBox.SelectedItem is not ServerItemViewModel server)
             return;
@@ -69,8 +81,7 @@ public partial class MainWindow : Window
         if (sender is MenuItem { Parent: ContextMenu menu })
             menu.IsOpen = false;
 
-        // WPF freezes if a modal dialog opens while the context menu is still closing.
-        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
-            ViewModel.OpenServerDetails(server));
+        await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle);
+        ViewModel.OpenServerDetails(server);
     }
 }

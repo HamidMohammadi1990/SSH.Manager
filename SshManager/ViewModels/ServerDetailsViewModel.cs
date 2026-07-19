@@ -1,3 +1,4 @@
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SshManager.Models;
@@ -12,6 +13,7 @@ public partial class ServerDetailsViewModel : ObservableObject
     private readonly string _groupName;
     private readonly ServerDetailsService _service;
     private CancellationTokenSource? _loadCts;
+    private bool _isClosed;
 
     [ObservableProperty] private bool _isLoading = true;
     [ObservableProperty] private ServerDetailsReport? _report;
@@ -21,19 +23,20 @@ public partial class ServerDetailsViewModel : ObservableObject
     public ServerDetailsViewModel(
         ServerItemViewModel server,
         AppSettings settings,
-        string groupName,
-        ServerDetailsService? service = null)
+        string groupName)
     {
         _server = server;
         _settings = settings;
         _groupName = groupName;
-        _service = service ?? new ServerDetailsService();
+        _service = new ServerDetailsService();
         WindowTitle = $"Server Details — {server.Name}";
         Report = _service.CreatePlaceholderReport(_server.ToModel(), _groupName, _server.Commands.Count);
     }
 
     public async Task LoadAsync()
     {
+        if (_isClosed) return;
+
         _loadCts?.Cancel();
         _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
@@ -44,34 +47,52 @@ public partial class ServerDetailsViewModel : ObservableObject
 
         try
         {
-            var report = await _service.CollectAsync(
-                await Task.Run(() => BuildServerModel(), token).ConfigureAwait(true),
-                _settings,
-                _groupName,
-                _server.Commands.Count,
-                token).ConfigureAwait(true);
+            var model = await Task.Run(() => BuildServerModel(), token).ConfigureAwait(false);
+            if (_isClosed || token.IsCancellationRequested) return;
 
-            Report = report;
-            StatusMessage = report.IsSuccess
-                ? $"بروزرسانی: {report.CollectedAt:HH:mm:ss}"
-                : report.ErrorMessage ?? "جمع‌آوری اطلاعات ناموفق بود";
+            var report = await _service.CollectAsync(
+                model, _settings, _groupName, _server.Commands.Count, token).ConfigureAwait(false);
+            if (_isClosed || token.IsCancellationRequested) return;
+
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                if (_isClosed) return;
+                Report = report;
+                StatusMessage = report.IsSuccess
+                    ? $"بروزرسانی: {report.CollectedAt:HH:mm:ss}"
+                    : report.ErrorMessage ?? "جمع‌آوری اطلاعات ناموفق بود";
+            });
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "بارگذاری لغو شد";
+            if (!_isClosed)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                    StatusMessage = "بارگذاری لغو شد");
+            }
         }
         catch (Exception ex)
         {
-            StatusMessage = ex.Message;
-            if (Report != null)
+            if (!_isClosed)
             {
-                Report.ErrorMessage = ex.Message;
-                Report.IsSuccess = false;
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    StatusMessage = ex.Message;
+                    if (Report != null)
+                    {
+                        Report.ErrorMessage = ex.Message;
+                        Report.IsSuccess = false;
+                    }
+                });
             }
         }
         finally
         {
-            IsLoading = false;
+            if (!_isClosed)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() => IsLoading = false);
+            }
+
             _loadCts?.Dispose();
             _loadCts = null;
         }
@@ -85,12 +106,22 @@ public partial class ServerDetailsViewModel : ObservableObject
         return _server.ToModel(enc);
     }
 
-    public void CancelLoading() => _loadCts?.Cancel();
+    public void CancelLoading()
+    {
+        _loadCts?.Cancel();
+        _service.CancelActive();
+    }
+
+    public void OnDialogClosed()
+    {
+        _isClosed = true;
+        CancelLoading();
+    }
 
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        if (IsLoading) return;
+        if (IsLoading || _isClosed) return;
         await LoadAsync();
     }
 }

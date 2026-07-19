@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Renci.SshNet;
 using SshManager.Models;
 
@@ -11,6 +12,7 @@ public class ServerDetailsService
 {
     private const int DetailsConnectTimeoutSeconds = 10;
     private const int DetailsCommandTimeoutSeconds = 20;
+    private SshClient? _activeClient;
 
     private const string LinuxCollectScript = """
         echo '@@HOST@@'
@@ -59,6 +61,19 @@ public class ServerDetailsService
         return report;
     }
 
+    public void CancelActive()
+    {
+        var client = Interlocked.Exchange(ref _activeClient, null);
+        if (client == null) return;
+
+        try
+        {
+            if (client.IsConnected)
+                client.Disconnect();
+        }
+        catch { /* best effort */ }
+    }
+
     public async Task<ServerDetailsReport> CollectAsync(
         ServerProfile server,
         AppSettings settings,
@@ -86,39 +101,59 @@ public class ServerDetailsService
 
                 using var client = ConnectionTestService.CreateSshClient(
                     server, username, password, keyPath, connectTimeout);
-                client.Connect();
+                _activeClient = client;
 
-                if (!client.IsConnected)
-                    throw new InvalidOperationException("Could not connect via SSH.");
-
-                var platform = Run(client, "uname -s 2>/dev/null || echo unknown", 5, ct)
-                    .Trim().ToLowerInvariant();
-
-                if (platform.Contains("linux") || platform.Contains("darwin") || platform.Contains("unix"))
+                try
                 {
-                    report.Platform = "Linux / Unix";
-                    var bundle = Run(client, LinuxCollectScript, commandTimeout, ct);
-                    ParseLinuxBundle(bundle, report);
-                }
-                else if (platform.Contains("windows") || platform.Contains("mingw") || platform.Contains("cygwin"))
-                {
-                    CollectWindows(client, report, commandTimeout, ct);
-                }
-                else
-                {
-                    CollectGeneric(client, report, commandTimeout, ct);
-                }
+                    ct.ThrowIfCancellationRequested();
+                    client.Connect();
 
-                client.Disconnect();
-            }, ct);
+                    if (!client.IsConnected)
+                        throw new InvalidOperationException("Could not connect via SSH.");
+
+                    var platform = Run(client, "uname -s 2>/dev/null || echo unknown", 5, ct)
+                        .Trim().ToLowerInvariant();
+
+                    if (platform.Contains("linux") || platform.Contains("darwin") || platform.Contains("unix"))
+                    {
+                        report.Platform = "Linux / Unix";
+                        var bundle = Run(client, LinuxCollectScript, commandTimeout, ct);
+                        ParseLinuxBundle(bundle, report);
+                    }
+                    else if (platform.Contains("windows") || platform.Contains("mingw") || platform.Contains("cygwin"))
+                    {
+                        CollectWindows(client, report, commandTimeout, ct);
+                    }
+                    else
+                    {
+                        CollectGeneric(client, report, commandTimeout, ct);
+                    }
+
+                    if (client.IsConnected)
+                        client.Disconnect();
+                }
+                finally
+                {
+                    if (ReferenceEquals(_activeClient, client))
+                        _activeClient = null;
+                }
+            }, ct).ConfigureAwait(false);
 
             report.CollectedAt = DateTime.Now;
             report.IsSuccess = string.IsNullOrEmpty(report.ErrorMessage);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             report.ErrorMessage = ex.Message;
             report.IsSuccess = false;
+        }
+        finally
+        {
+            CancelActive();
         }
 
         return report;

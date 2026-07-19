@@ -19,22 +19,7 @@ public partial class ServerDetailsDialog : Window
             return;
 
         _loadStarted = true;
-
-        // Paint the loading overlay first, then fetch data off the UI thread.
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _ = LoadSafeAsync(vm));
-    }
-
-    private async Task LoadSafeAsync(ServerDetailsViewModel vm)
-    {
-        try
-        {
-            await vm.LoadAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            vm.StatusMessage = ex.Message;
-            vm.IsLoading = false;
-        }
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _ = vm.LoadAsync());
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)

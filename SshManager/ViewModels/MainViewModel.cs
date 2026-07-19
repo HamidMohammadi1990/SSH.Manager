@@ -20,7 +20,6 @@ public partial class MainViewModel : ObservableObject
     private readonly ConnectionTestService _connectionTestService = new();
     private readonly ExecutionService _executionService = new();
     private readonly BatchExecutionService _batchExecutionService = new();
-    private readonly ServerDetailsService _serverDetailsService = new();
     private readonly DispatcherTimer _clockTimer;
     private CancellationTokenSource? _executionCts;
     private BatchJob? _loadedBatchJob;
@@ -451,24 +450,50 @@ public partial class MainViewModel : ObservableObject
         MarkDirty();
     }
 
+    private Window? _detailsDialog;
+
     public void OpenServerDetails(ServerItemViewModel server)
     {
         try
         {
+            CloseDetailsDialog();
+
             var groupName = Groups.FirstOrDefault(g => g.Id == server.GroupId)?.Name ?? "(No Group)";
             var settings = BuildSettings();
-            var vm = new ServerDetailsViewModel(server, settings, groupName, _serverDetailsService);
+            var vm = new ServerDetailsViewModel(server, settings, groupName);
             var dialog = new ServerDetailsDialog
             {
                 Owner = Application.Current.MainWindow,
                 DataContext = vm
             };
+
+            dialog.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_detailsDialog, dialog))
+                    _detailsDialog = null;
+
+                if (dialog.DataContext is ServerDetailsViewModel detailsVm)
+                    detailsVm.OnDialogClosed();
+            };
+
+            _detailsDialog = dialog;
             dialog.Show();
         }
         catch (Exception ex)
         {
             DialogService.ShowError(ex.Message, "Server Details");
         }
+    }
+
+    private void CloseDetailsDialog()
+    {
+        if (_detailsDialog == null) return;
+
+        if (_detailsDialog.DataContext is ServerDetailsViewModel vm)
+            vm.OnDialogClosed();
+
+        try { _detailsDialog.Close(); } catch { /* already closing */ }
+        _detailsDialog = null;
     }
 
     [RelayCommand]
@@ -904,6 +929,14 @@ public partial class MainViewModel : ObservableObject
     public void OnGroupFieldChanged() => MarkDirty();
 
     public void BeginContextMenuSelection() => _suppressTabOnSelect = true;
+
+    public void EnsureServerEditorOpen(ServerItemViewModel server)
+    {
+        if (!ReferenceEquals(SelectedServer, server))
+            SelectedServer = server;
+        else
+            OpenOrSelectTab(server);
+    }
 
     private AppSettings BuildSettings() => new()
     {

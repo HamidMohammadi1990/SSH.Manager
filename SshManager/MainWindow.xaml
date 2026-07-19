@@ -107,6 +107,7 @@
                         <TextBlock Text="{Binding ServersListTitle}" Style="{DynamicResource SectionTitle}"/>
                         <ListBox x:Name="ServerListBox" Grid.Row="1" ItemsSource="{Binding ServersView}"
                                  SelectedItem="{Binding SelectedServer}"
+                                 PreviewMouseLeftButtonDown="ServerList_PreviewMouseLeftButtonDown"
                                  PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown">
                             <ListBox.ContextMenu>
                                 <ContextMenu Style="{DynamicResource DarkContextMenu}"
