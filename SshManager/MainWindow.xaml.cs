@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using SshManager.ViewModels;
 
@@ -41,4 +43,19 @@ public partial class MainWindow : Window
     }
 
     private void GroupField_Changed(object sender, TextChangedEventArgs e) => ViewModel.OnGroupFieldChanged();
+
+    private void ServerList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox listBox) return;
+
+        var element = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
+        while (element != null && element is not ListBoxItem)
+            element = VisualTreeHelper.GetParent(element);
+
+        if (element is ListBoxItem item)
+        {
+            item.IsSelected = true;
+            item.Focus();
+        }
+    }
 }

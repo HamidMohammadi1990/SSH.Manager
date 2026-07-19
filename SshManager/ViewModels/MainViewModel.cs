@@ -427,20 +427,20 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RemoveServer()
+    private void RemoveServer(ServerItemViewModel? server = null)
     {
-        var server = ActiveServer;
-        if (server == null) return;
+        var target = server ?? SelectedServer;
+        if (target == null) return;
         var result = DialogService.ShowYesNo(
-            $"Remove server '{server.Name}'?",
+            $"Remove server '{target.Name}'?",
             "Confirm Remove",
             DialogKind.Warning);
         if (result != MessageBoxResult.Yes) return;
 
-        Servers.Remove(server);
-        CloseTabForServer(server);
+        Servers.Remove(target);
+        CloseTabForServer(target);
         ReorderServers();
-        SelectedServer = Servers.FirstOrDefault();
+        SelectedServer = ServersView.Cast<ServerItemViewModel>().FirstOrDefault();
         MarkDirty();
     }
 

@@ -264,6 +264,37 @@
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
     </Style>
 
+    <Style x:Key="DarkContextMenu" TargetType="ContextMenu">
+        <Setter Property="Background" Value="{StaticResource BgMediumBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <Style x:Key="DarkMenuItem" TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="ServerTabItem" TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>

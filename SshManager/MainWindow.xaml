@@ -105,8 +105,15 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <TextBlock Text="{Binding ServersListTitle}" Style="{DynamicResource SectionTitle}"/>
-                        <ListBox Grid.Row="1" ItemsSource="{Binding ServersView}"
-                                 SelectedItem="{Binding SelectedServer}">
+                        <ListBox x:Name="ServerListBox" Grid.Row="1" ItemsSource="{Binding ServersView}"
+                                 SelectedItem="{Binding SelectedServer}"
+                                 PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown">
+                            <ListBox.ContextMenu>
+                                <ContextMenu Style="{DynamicResource DarkContextMenu}">
+                                    <MenuItem Header="Remove Server" Style="{DynamicResource DarkMenuItem}"
+                                              Command="{Binding RemoveServerCommand}"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
@@ -140,8 +147,6 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Button Content="+ Add" Style="{DynamicResource PrimaryButton}" Margin="0,0,4,0"
                                     Command="{Binding AddServerCommand}"/>
-                            <Button Content="Remove" Style="{DynamicResource DangerButton}" Margin="0,0,4,0"
-                                    Command="{Binding RemoveServerCommand}"/>
                             <Button Content="▲" Style="{DynamicResource IconButton}" Command="{Binding MoveServerUpCommand}" ToolTip="Move Up"/>
                             <Button Content="▼" Style="{DynamicResource IconButton}" Command="{Binding MoveServerDownCommand}" ToolTip="Move Down"/>
                         </StackPanel>
