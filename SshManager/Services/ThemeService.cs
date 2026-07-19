@@ -7,8 +7,7 @@ namespace SshManager.Services;
 public static class ThemeService
 {
     private const string ConvertersUri = "Themes/Converters.xaml";
-    private const string DarkThemeUri = "Themes/DarkTheme.xaml";
-    private const string LightThemeUri = "Themes/LightTheme.xaml";
+    private const string ComboBoxStylesUri = "Themes/ComboBoxStyles.xaml";
 
     public static AppTheme CurrentTheme { get; private set; } = AppTheme.Dark;
 
@@ -20,38 +19,34 @@ public static class ThemeService
         if (app == null) return;
 
         CurrentTheme = theme;
-        var themeUri = new Uri(theme == AppTheme.Dark ? DarkThemeUri : LightThemeUri, UriKind.Relative);
+        var colorsUri = new Uri(theme == AppTheme.Dark ? "Themes/DarkColors.xaml" : "Themes/LightColors.xaml", UriKind.Relative);
+        var controlsUri = new Uri(theme == AppTheme.Dark ? "Themes/DarkTheme.xaml" : "Themes/LightTheme.xaml", UriKind.Relative);
 
         var merged = app.Resources.MergedDictionaries;
+
+        ResourceDictionary? converters = null;
+        ResourceDictionary? comboStyles = null;
 
         for (var i = merged.Count - 1; i >= 0; i--)
         {
             var source = merged[i].Source?.OriginalString ?? string.Empty;
-            if (source.Contains("DarkTheme", StringComparison.OrdinalIgnoreCase) ||
-                source.Contains("LightTheme", StringComparison.OrdinalIgnoreCase))
-            {
-                merged.RemoveAt(i);
-            }
+            if (source.Contains("Converters", StringComparison.OrdinalIgnoreCase))
+                converters = merged[i];
+            else if (source.Contains("ComboBoxStyles", StringComparison.OrdinalIgnoreCase))
+                comboStyles = merged[i];
         }
 
-        merged.Add(new ResourceDictionary { Source = themeUri });
+        merged.Clear();
+
+        merged.Add(converters ?? new ResourceDictionary { Source = new Uri(ConvertersUri, UriKind.Relative) });
+        merged.Add(new ResourceDictionary { Source = colorsUri });
+        merged.Add(comboStyles ?? new ResourceDictionary { Source = new Uri(ComboBoxStylesUri, UriKind.Relative) });
+        merged.Add(new ResourceDictionary { Source = controlsUri });
 
         foreach (Window window in app.Windows)
             RefreshWindowTheme(window);
 
         ThemeChanged?.Invoke(theme);
-    }
-
-    public static void EnsureResourcesLoaded()
-    {
-        var app = Application.Current;
-        if (app == null) return;
-
-        var merged = app.Resources.MergedDictionaries;
-        if (merged.Any(d => d.Source?.OriginalString?.Contains("Converters", StringComparison.OrdinalIgnoreCase) == true))
-            return;
-
-        merged.Insert(0, new ResourceDictionary { Source = new Uri(ConvertersUri, UriKind.Relative) });
     }
 
     private static void RefreshWindowTheme(Window window)

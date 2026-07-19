@@ -5,6 +5,8 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Converters.xaml"/>
+                <ResourceDictionary Source="Themes/DarkColors.xaml"/>
+                <ResourceDictionary Source="Themes/ComboBoxStyles.xaml"/>
                 <ResourceDictionary Source="Themes/DarkTheme.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
