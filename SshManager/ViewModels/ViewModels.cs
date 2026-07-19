@@ -15,7 +15,7 @@ public partial class ServerItemViewModel : ObservableObject
     [ObservableProperty] private string _host = string.Empty;
     [ObservableProperty] private int _port = 22;
     [ObservableProperty] private ConnectionType _connectionType = ConnectionType.Ssh;
-    [ObservableProperty] private string? _groupId;
+    [ObservableProperty] private string _groupId = string.Empty;
     [ObservableProperty] private string _description = string.Empty;
     [ObservableProperty] private DateTime _createdAt = DateTime.Now;
     [ObservableProperty] private int _order;
@@ -46,7 +46,7 @@ public partial class ServerItemViewModel : ObservableObject
             Host = Host,
             Port = Port,
             ConnectionType = ConnectionType,
-            GroupId = GroupId,
+            GroupId = string.IsNullOrEmpty(GroupId) ? null : GroupId,
             Description = Description,
             CreatedAt = CreatedAt,
             Order = Order,
@@ -67,7 +67,7 @@ public partial class ServerItemViewModel : ObservableObject
             Host = model.Host,
             Port = model.Port,
             ConnectionType = model.ConnectionType,
-            GroupId = model.GroupId,
+            GroupId = model.GroupId ?? string.Empty,
             Description = model.Description,
             CreatedAt = model.CreatedAt,
             Order = model.Order,

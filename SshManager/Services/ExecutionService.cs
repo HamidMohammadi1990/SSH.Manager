@@ -27,7 +27,7 @@ public class ExecutionService
         {
             ct.ThrowIfCancellationRequested();
 
-            var groupName = server.GroupId != null && groupLookup.TryGetValue(server.GroupId, out var gn)
+            var groupName = !string.IsNullOrEmpty(server.GroupId) && groupLookup.TryGetValue(server.GroupId, out var gn)
                 ? gn
                 : "Ungrouped";
 

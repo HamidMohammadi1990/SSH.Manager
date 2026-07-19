@@ -12,18 +12,18 @@
     <conv:ConnectionTypeToStringConverter x:Key="ConnTypeStr"/>
 
     <!-- Colors -->
-    <Color x:Key="BgDark">#1E1E2E</Color>
-    <Color x:Key="BgMedium">#252536</Color>
-    <Color x:Key="BgLight">#2D2D44</Color>
-    <Color x:Key="BgCard">#313145</Color>
-    <Color x:Key="Accent">#7C4DFF</Color>
-    <Color x:Key="AccentLight">#B388FF</Color>
-    <Color x:Key="TextPrimary">#E8E8F0</Color>
-    <Color x:Key="TextSecondary">#A0A0B8</Color>
-    <Color x:Key="Border">#3D3D55</Color>
-    <Color x:Key="Success">#4CAF50</Color>
-    <Color x:Key="Error">#F44336</Color>
-    <Color x:Key="Warning">#FFC107</Color>
+    <Color x:Key="BgDark">#F5F5F8</Color>
+    <Color x:Key="BgMedium">#FFFFFF</Color>
+    <Color x:Key="BgLight">#ECECF2</Color>
+    <Color x:Key="BgCard">#E4E4EC</Color>
+    <Color x:Key="Accent">#5E35B1</Color>
+    <Color x:Key="AccentLight">#7E57C2</Color>
+    <Color x:Key="TextPrimary">#1A1A2E</Color>
+    <Color x:Key="TextSecondary">#5C5C72</Color>
+    <Color x:Key="Border">#D0D0DC</Color>
+    <Color x:Key="Success">#388E3C</Color>
+    <Color x:Key="Error">#D32F2F</Color>
+    <Color x:Key="Warning">#F9A825</Color>
 
     <SolidColorBrush x:Key="BgDarkBrush" Color="{StaticResource BgDark}"/>
     <SolidColorBrush x:Key="BgMediumBrush" Color="{StaticResource BgMedium}"/>
@@ -42,7 +42,6 @@
     <FontFamily x:Key="MainFont">Segoe UI</FontFamily>
     <FontFamily x:Key="MonoFont">Cascadia Code, Consolas, Courier New</FontFamily>
 
-    <!-- Button Style -->
     <Style x:Key="PrimaryButton" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
         <Setter Property="Foreground" Value="White"/>
@@ -100,10 +99,9 @@
     </Style>
 
     <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-        <Setter Property="Foreground" Value="#F44336"/>
+        <Setter Property="Foreground" Value="#D32F2F"/>
     </Style>
 
-    <!-- TextBox -->
     <Style TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource BgMediumBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -125,7 +123,6 @@
         </Setter>
     </Style>
 
-  <!-- PasswordBox -->
     <Style TargetType="PasswordBox">
         <Setter Property="Background" Value="{StaticResource BgMediumBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -147,14 +144,12 @@
         </Setter>
     </Style>
 
-    <!-- CheckBox -->
     <Style TargetType="CheckBox">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
-    <!-- Label -->
     <Style x:Key="FieldLabel" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>
@@ -170,7 +165,6 @@
         <Setter Property="Margin" Value="0,0,0,12"/>
     </Style>
 
-    <!-- ListBox -->
     <Style TargetType="ListBox">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -191,37 +185,28 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource BgLightBrush}"/>
                         </Trigger>
-                        <MultiTrigger>
-                            <MultiTrigger.Conditions>
-                                <Condition Property="IsSelected" Value="True"/>
-                                <Condition Property="IsMouseOver" Value="True"/>
-                            </MultiTrigger.Conditions>
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentLightBrush}"/>
-                        </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- ScrollBar -->
     <Style TargetType="ScrollBar">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Width" Value="8"/>
     </Style>
 
-    <!-- Expander -->
     <Style TargetType="Expander">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
-    <!-- TabControl -->
     <Style TargetType="TabControl">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -240,7 +225,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource AccentLightBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">

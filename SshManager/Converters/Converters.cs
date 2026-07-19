@@ -6,6 +6,21 @@ using SshManager.Models;
 
 namespace SshManager.Converters;
 
+public class ObjectToBoolConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var invert = parameter?.ToString() == "Invert";
+        var hasValue = value != null;
+        if (value is string s)
+            hasValue = !string.IsNullOrWhiteSpace(s);
+        return invert ? !hasValue : hasValue;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public class InverseBoolConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -108,7 +123,12 @@ public class TimeSpanToStringConverter : IValueConverter
 public class ConnectionTypeToStringConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is ConnectionType ct ? ct.ToString().ToUpperInvariant() : string.Empty;
+        => value is ConnectionType ct ? ct switch
+        {
+            ConnectionType.Ssh => "SSH",
+            ConnectionType.Telnet => "Telnet",
+            _ => ct.ToString()
+        } : string.Empty;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();

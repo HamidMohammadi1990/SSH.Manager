@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -19,6 +21,7 @@ public partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _clockTimer;
     private CancellationTokenSource? _executionCts;
     private bool _isDirty;
+    private GroupItemViewModel? _watchedGroup;
 
     [ObservableProperty] private string _currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -34,21 +37,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private CommandItemViewModel? _selectedCommand;
     [ObservableProperty] private string _executionSummary = string.Empty;
     [ObservableProperty] private bool _hasExecutionResults;
+    [ObservableProperty] private AppTheme _currentTheme = AppTheme.Dark;
+
+    public string ThemeToggleLabel => CurrentTheme == AppTheme.Dark ? "☀ Light" : "🌙 Dark";
 
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
+    public ObservableCollection<GroupItemViewModel> GroupOptionsList { get; } = new();
     public ObservableCollection<OutputLineViewModel> OutputLines { get; } = new();
     public ObservableCollection<ExecutionServerViewModel> ExecutionResults { get; } = new();
 
     private static readonly GroupItemViewModel NoGroupOption = new() { Id = string.Empty, Name = "(No Group)" };
 
-    public IEnumerable<GroupItemViewModel> GroupOptions =>
-        new[] { NoGroupOption }.Concat(Groups.OrderBy(g => g.Order));
-
     public Array ConnectionTypes => Enum.GetValues(typeof(ConnectionType));
 
     public MainViewModel()
     {
+        Groups.CollectionChanged += OnGroupsCollectionChanged;
+
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) =>
         {
@@ -63,6 +69,71 @@ public partial class MainViewModel : ObservableObject
         };
 
         LoadData();
+    }
+
+    partial void OnCurrentThemeChanged(AppTheme value)
+    {
+        ThemeService.ApplyTheme(value);
+        OnPropertyChanged(nameof(ThemeToggleLabel));
+    }
+
+    partial void OnSelectedGroupChanged(GroupItemViewModel? value)
+    {
+        if (_watchedGroup != null)
+            _watchedGroup.PropertyChanged -= OnSelectedGroupPropertyChanged;
+
+        _watchedGroup = value;
+
+        if (_watchedGroup != null)
+            _watchedGroup.PropertyChanged += OnSelectedGroupPropertyChanged;
+    }
+
+    private void OnSelectedGroupPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(GroupItemViewModel.Name))
+        {
+            RefreshGroupOptions();
+            MarkDirty();
+        }
+    }
+
+    private void OnGroupsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems != null)
+        {
+            foreach (GroupItemViewModel group in e.NewItems)
+                group.PropertyChanged += OnGroupItemPropertyChanged;
+        }
+
+        if (e.OldItems != null)
+        {
+            foreach (GroupItemViewModel group in e.OldItems)
+                group.PropertyChanged -= OnGroupItemPropertyChanged;
+        }
+
+        RefreshGroupOptions();
+    }
+
+    private void OnGroupItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(GroupItemViewModel.Name))
+            RefreshGroupOptions();
+    }
+
+    private void RefreshGroupOptions()
+    {
+        GroupOptionsList.Clear();
+        GroupOptionsList.Add(NoGroupOption);
+        foreach (var group in Groups.OrderBy(g => g.Order))
+            GroupOptionsList.Add(group);
+    }
+
+    [RelayCommand]
+    private void ToggleTheme()
+    {
+        CurrentTheme = CurrentTheme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+        MarkDirty();
+        StatusMessage = $"Theme switched to {CurrentTheme}";
     }
 
     partial void OnSelectedServerChanged(ServerItemViewModel? value)
@@ -91,10 +162,13 @@ public partial class MainViewModel : ObservableObject
             : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
+        CurrentTheme = data.Settings.Theme;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))
             Groups.Add(GroupItemViewModel.FromModel(g));
+
+        RefreshGroupOptions();
 
         Servers.Clear();
         foreach (var s in data.Servers.OrderBy(s => s.Order))
@@ -120,7 +194,8 @@ public partial class MainViewModel : ObservableObject
                     ? null
                     : CredentialService.Encrypt(DefaultPassword),
                 ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
-                CommandTimeoutSeconds = CommandTimeoutSeconds
+                CommandTimeoutSeconds = CommandTimeoutSeconds,
+                Theme = CurrentTheme
             },
             Groups = Groups.Select(g => g.ToModel()).OrderBy(g => g.Order).ToList(),
             Servers = Servers.Select(s =>
@@ -190,7 +265,7 @@ public partial class MainViewModel : ObservableObject
             Port = 22,
             Order = Servers.Count,
             CreatedAt = DateTime.Now,
-            GroupId = SelectedGroup?.Id
+            GroupId = SelectedGroup?.Id ?? string.Empty
         };
         Servers.Add(server);
         SelectedServer = server;
@@ -247,12 +322,14 @@ public partial class MainViewModel : ObservableObject
     {
         var group = new GroupItemViewModel
         {
-            Name = "New Group",
+            Name = $"Group {Groups.Count + 1}",
             Order = Groups.Count
         };
         Groups.Add(group);
         SelectedGroup = group;
+        RefreshGroupOptions();
         MarkDirty();
+        StatusMessage = "Group added — edit name below, then click Save";
     }
 
     [RelayCommand]
@@ -268,11 +345,12 @@ public partial class MainViewModel : ObservableObject
 
         var groupId = SelectedGroup.Id;
         foreach (var s in Servers.Where(s => s.GroupId == groupId))
-            s.GroupId = null;
+            s.GroupId = string.Empty;
 
         Groups.Remove(SelectedGroup);
         ReorderGroups();
         SelectedGroup = Groups.FirstOrDefault();
+        RefreshGroupOptions();
         MarkDirty();
     }
 
@@ -452,7 +530,8 @@ public partial class MainViewModel : ObservableObject
                 DefaultPasswordEncrypted = string.IsNullOrEmpty(DefaultPassword)
                     ? null : CredentialService.Encrypt(DefaultPassword),
                 ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
-                CommandTimeoutSeconds = CommandTimeoutSeconds
+                CommandTimeoutSeconds = CommandTimeoutSeconds,
+                Theme = CurrentTheme
             },
             Groups = Groups.Select(g => g.ToModel()).ToList(),
             Servers = Servers.Select(s =>
@@ -558,10 +637,13 @@ public partial class MainViewModel : ObservableObject
             ? CredentialService.Decrypt(data.Settings.DefaultPasswordEncrypted) : string.Empty;
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
+        CurrentTheme = data.Settings.Theme;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))
             Groups.Add(GroupItemViewModel.FromModel(g));
+
+        RefreshGroupOptions();
 
         Servers.Clear();
         foreach (var s in data.Servers.OrderBy(s => s.Order))
