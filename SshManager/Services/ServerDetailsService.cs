@@ -9,12 +9,38 @@ namespace SshManager.Services;
 
 public class ServerDetailsService
 {
-    public async Task<ServerDetailsReport> CollectAsync(
+    private const int DetailsConnectTimeoutSeconds = 10;
+    private const int DetailsCommandTimeoutSeconds = 20;
+
+    private const string LinuxCollectScript = """
+        echo '@@HOST@@'
+        hostname -f 2>/dev/null || hostname
+        echo '@@USER@@'
+        whoami
+        echo '@@UPTIME@@'
+        uptime -p 2>/dev/null || uptime
+        echo '@@OS@@'
+        cat /etc/os-release 2>/dev/null
+        echo '@@UNAME@@'
+        uname -srvmo
+        echo '@@ARCH@@'
+        uname -m
+        echo '@@CPUINFO@@'
+        lscpu 2>/dev/null | grep -E 'Model name|CPU\\(s\\):|Architecture' || true
+        echo '@@MEM@@'
+        free -b 2>/dev/null | awk 'NR==2{print $2,$3}'
+        echo '@@CPU@@'
+        read _ u1 n1 s1 i1 iw1 irq1 sirq1 _ < /proc/stat; i1=$((i1+iw1)); t1=$((u1+n1+s1+i1+irq1+sirq1)); sleep 0.3; read _ u2 n2 s2 i2 iw2 irq2 sirq2 _ < /proc/stat; i2=$((i2+iw2)); t2=$((u2+n2+s2+i2+irq2+sirq2)); dt=$((t2-t1)); di=$((i2-i1)); if [ "$dt" -gt 0 ]; then awk -v u=$dt -v i=$di 'BEGIN{printf "%.1f", (u-i)*100/u}'; fi
+        echo '@@DF@@'
+        df -B1 -P 2>/dev/null | tail -n +2
+        echo '@@NET@@'
+        ip -br addr 2>/dev/null | head -8
+        """;
+
+    public ServerDetailsReport CreatePlaceholderReport(
         ServerProfile server,
-        AppSettings settings,
         string groupName,
-        int commandCount,
-        CancellationToken ct = default)
+        int commandCount)
     {
         var report = new ServerDetailsReport
         {
@@ -29,10 +55,23 @@ public class ServerDetailsService
             CollectedAt = DateTime.Now
         };
 
+        PopulateAppSections(report, server);
+        return report;
+    }
+
+    public async Task<ServerDetailsReport> CollectAsync(
+        ServerProfile server,
+        AppSettings settings,
+        string groupName,
+        int commandCount,
+        CancellationToken ct = default)
+    {
+        var report = CreatePlaceholderReport(server, groupName, commandCount);
+
         if (server.ConnectionType != ConnectionType.Ssh)
         {
-            report.ErrorMessage = "Detailed system information is available over SSH. Switch this server to SSH to collect metrics.";
-            PopulateAppSections(report, server);
+            report.ErrorMessage = "Detailed system metrics require SSH. Switch this server to SSH, or use Telnet for command execution only.";
+            report.IsSuccess = false;
             return report;
         }
 
@@ -42,81 +81,91 @@ public class ServerDetailsService
             {
                 ct.ThrowIfCancellationRequested();
                 var (username, password, keyPath) = ConnectionTestService.ResolveCredentials(server, settings);
+                var connectTimeout = Math.Min(settings.ConnectionTimeoutSeconds, DetailsConnectTimeoutSeconds);
+                var commandTimeout = Math.Min(settings.CommandTimeoutSeconds, DetailsCommandTimeoutSeconds);
 
                 using var client = ConnectionTestService.CreateSshClient(
-                    server, username, password, keyPath, settings.ConnectionTimeoutSeconds);
+                    server, username, password, keyPath, connectTimeout);
                 client.Connect();
 
                 if (!client.IsConnected)
                     throw new InvalidOperationException("Could not connect via SSH.");
 
-                var platform = Run(client, "uname -s 2>/dev/null || echo unknown", settings.CommandTimeoutSeconds, ct)
+                var platform = Run(client, "uname -s 2>/dev/null || echo unknown", 5, ct)
                     .Trim().ToLowerInvariant();
 
                 if (platform.Contains("linux") || platform.Contains("darwin") || platform.Contains("unix"))
-                    CollectLinux(client, report, settings, ct);
+                {
+                    report.Platform = "Linux / Unix";
+                    var bundle = Run(client, LinuxCollectScript, commandTimeout, ct);
+                    ParseLinuxBundle(bundle, report);
+                }
                 else if (platform.Contains("windows") || platform.Contains("mingw") || platform.Contains("cygwin"))
-                    CollectWindows(client, report, settings, ct);
+                {
+                    CollectWindows(client, report, commandTimeout, ct);
+                }
                 else
-                    CollectGeneric(client, report, settings, ct);
+                {
+                    CollectGeneric(client, report, commandTimeout, ct);
+                }
 
                 client.Disconnect();
             }, ct);
 
-            PopulateAppSections(report, server);
+            report.CollectedAt = DateTime.Now;
             report.IsSuccess = string.IsNullOrEmpty(report.ErrorMessage);
         }
         catch (Exception ex)
         {
             report.ErrorMessage = ex.Message;
             report.IsSuccess = false;
-            PopulateAppSections(report, server);
         }
 
         return report;
     }
 
-    private static void CollectLinux(SshClient client, ServerDetailsReport report, AppSettings settings, CancellationToken ct)
+    private static void ParseLinuxBundle(string bundle, ServerDetailsReport report)
     {
-        report.Platform = "Linux / Unix";
+        var sections = SplitMarkedSections(bundle);
 
-        report.Hostname = FirstLine(Run(client, "hostname -f 2>/dev/null || hostname", settings.CommandTimeoutSeconds, ct));
-        report.CurrentUser = FirstLine(Run(client, "whoami", settings.CommandTimeoutSeconds, ct));
-        report.Uptime = FirstLine(Run(client, "uptime -p 2>/dev/null || uptime", settings.CommandTimeoutSeconds, ct));
-        report.LoadAverage = ExtractLoadAverage(Run(client, "uptime", settings.CommandTimeoutSeconds, ct));
+        if (sections.TryGetValue("HOST", out var host))
+            report.Hostname = FirstLine(host);
 
-        var osRelease = Run(client, "cat /etc/os-release 2>/dev/null", settings.CommandTimeoutSeconds, ct);
-        ParseOsRelease(osRelease, report);
+        if (sections.TryGetValue("USER", out var user))
+            report.CurrentUser = FirstLine(user);
 
-        var uname = Run(client, "uname -srvmo", settings.CommandTimeoutSeconds, ct);
-        if (!string.IsNullOrWhiteSpace(uname))
+        if (sections.TryGetValue("UPTIME", out var uptime))
+        {
+            report.Uptime = FirstLine(uptime);
+            report.LoadAverage = ExtractLoadAverage(uptime);
+        }
+
+        if (sections.TryGetValue("OS", out var osRelease))
+            ParseOsRelease(osRelease, report);
+
+        if (sections.TryGetValue("UNAME", out var uname) && !string.IsNullOrWhiteSpace(uname))
             report.Kernel = uname.Trim();
 
-        var arch = FirstLine(Run(client, "uname -m", settings.CommandTimeoutSeconds, ct));
-        if (!string.IsNullOrWhiteSpace(arch))
-            report.Architecture = arch;
+        if (sections.TryGetValue("ARCH", out var arch) && !string.IsNullOrWhiteSpace(arch))
+            report.Architecture = FirstLine(arch);
 
-        var cpuInfo = Run(client, "lscpu 2>/dev/null", settings.CommandTimeoutSeconds, ct);
-        ParseLscpu(cpuInfo, report);
+        if (sections.TryGetValue("CPUINFO", out var cpuInfo))
+            ParseLscpu(cpuInfo, report);
 
-        var coresText = FirstLine(Run(client, "nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null", settings.CommandTimeoutSeconds, ct));
-        if (int.TryParse(coresText, out var cores) && cores > 0)
-            report.CpuCores = cores;
+        if (sections.TryGetValue("MEM", out var mem))
+            ParseFree(mem, report);
 
-        var freeOutput = Run(client, "free -b 2>/dev/null | awk 'NR==2{print $2,$3,$4}'", settings.CommandTimeoutSeconds, ct);
-        ParseFree(freeOutput, report);
+        if (sections.TryGetValue("CPU", out var cpu))
+        {
+            var cpuText = cpu.Trim();
+            if (double.TryParse(cpuText, NumberStyles.Float, CultureInfo.InvariantCulture, out var cpuPct))
+                report.CpuUsagePercent = cpuPct;
+        }
 
-        var cpuScript = Run(client,
-            @"sh -c 'read _ u1 n1 s1 i1 iw1 irq1 sirq1 _ < /proc/stat; idle1=i1+iw1; total1=u1+n1+s1+idle1+irq1+sirq1; sleep 1; read _ u2 n2 s2 i2 iw2 irq2 sirq2 _ < /proc/stat; idle2=i2+iw2; total2=u2+n2+s2+idle2+irq2+sirq2; dt=total2-total1; di=idle2-idle1; if [ $dt -gt 0 ]; then awk -v u=$dt -v i=$di ""BEGIN{printf ""%.1f"", (u-i)*100/u}""; fi'",
-            settings.CommandTimeoutSeconds, ct);
-        if (double.TryParse(cpuScript.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var cpuPct))
-            report.CpuUsagePercent = cpuPct;
+        if (sections.TryGetValue("DF", out var df))
+            ParseDf(df, report);
 
-        var dfOutput = Run(client, "df -B1 -P 2>/dev/null | tail -n +2", settings.CommandTimeoutSeconds, ct);
-        ParseDf(dfOutput, report);
-
-        var network = Run(client, "ip -br addr 2>/dev/null || ifconfig 2>/dev/null | head -20", settings.CommandTimeoutSeconds, ct);
-        if (!string.IsNullOrWhiteSpace(network))
+        if (sections.TryGetValue("NET", out var network) && !string.IsNullOrWhiteSpace(network))
         {
             report.Sections.Add(new DetailSection
             {
@@ -129,44 +178,56 @@ public class ServerDetailsService
         }
     }
 
-    private static void CollectWindows(SshClient client, ServerDetailsReport report, AppSettings settings, CancellationToken ct)
+    private static Dictionary<string, string> SplitMarkedSections(string content)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var currentKey = string.Empty;
+        var buffer = new StringBuilder();
+
+        foreach (var line in content.Replace("\r\n", "\n").Split('\n'))
+        {
+            if (line.StartsWith("@@") && line.EndsWith("@@") && line.Length > 4)
+            {
+                if (currentKey.Length > 0)
+                    result[currentKey] = buffer.ToString().Trim();
+
+                currentKey = line[2..^2];
+                buffer.Clear();
+                continue;
+            }
+
+            if (currentKey.Length > 0)
+            {
+                if (buffer.Length > 0)
+                    buffer.AppendLine();
+                buffer.Append(line);
+            }
+        }
+
+        if (currentKey.Length > 0)
+            result[currentKey] = buffer.ToString().Trim();
+
+        return result;
+    }
+
+    private static void CollectWindows(SshClient client, ServerDetailsReport report, int commandTimeout, CancellationToken ct)
     {
         report.Platform = "Windows";
 
         var script = """
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "
-            $os = Get-CimInstance Win32_OperatingSystem;
-            $cs = Get-CimInstance Win32_ComputerSystem;
-            $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1;
-            $disks = Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3';
-            $data = [ordered]@{
-              Hostname = $env:COMPUTERNAME;
-              User = $env:USERNAME;
-              OS = $os.Caption;
-              OSVersion = $os.Version;
-              Architecture = $os.OSArchitecture;
-              Uptime = ((Get-Date) - $os.LastBootUpTime).ToString();
-              TotalRAM = [int64]$cs.TotalPhysicalMemory;
-              FreeRAM = [int64]$os.FreePhysicalMemory * 1024;
-              CpuModel = $cpu.Name;
-              CpuCores = $cpu.NumberOfLogicalProcessors;
-              CpuLoad = $cpu.LoadPercentage;
-              Disks = @($disks | ForEach-Object { [ordered]@{ Name=$_.DeviceID; Total=[int64]$_.Size; Free=[int64]$_.FreeSpace; FileSystem=$_.FileSystem } })
-            };
-            $data | ConvertTo-Json -Compress
-            "
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "$os=Get-CimInstance Win32_OperatingSystem;$cs=Get-CimInstance Win32_ComputerSystem;$cpu=Get-CimInstance Win32_Processor|Select-Object -First 1;$disks=Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3';[ordered]@{Hostname=$env:COMPUTERNAME;User=$env:USERNAME;OS=$os.Caption;OSVersion=$os.Version;Architecture=$os.OSArchitecture;Uptime=((Get-Date)-$os.LastBootUpTime).ToString();TotalRAM=[int64]$cs.TotalPhysicalMemory;FreeRAM=[int64]$os.FreePhysicalMemory*1024;CpuModel=$cpu.Name;CpuCores=$cpu.NumberOfLogicalProcessors;CpuLoad=$cpu.LoadPercentage;Disks=@($disks|%{[ordered]@{Name=$_.DeviceID;Total=[int64]$_.Size;Free=[int64]$_.FreeSpace;FileSystem=$_.FileSystem}})}|ConvertTo-Json -Compress"
             """;
 
-        var json = Run(client, script, Math.Max(settings.CommandTimeoutSeconds, 45), ct);
+        var json = Run(client, script, Math.Min(commandTimeout, 25), ct);
         ParseWindowsJson(json, report);
     }
 
-    private static void CollectGeneric(SshClient client, ServerDetailsReport report, AppSettings settings, CancellationToken ct)
+    private static void CollectGeneric(SshClient client, ServerDetailsReport report, int commandTimeout, CancellationToken ct)
     {
         report.Platform = "Unknown";
-        report.Hostname = FirstLine(Run(client, "hostname 2>/dev/null", settings.CommandTimeoutSeconds, ct));
-        report.OperatingSystem = FirstLine(Run(client, "uname -a 2>/dev/null", settings.CommandTimeoutSeconds, ct));
-        report.CurrentUser = FirstLine(Run(client, "whoami 2>/dev/null", settings.CommandTimeoutSeconds, ct));
+        report.Hostname = FirstLine(Run(client, "hostname 2>/dev/null", commandTimeout, ct));
+        report.OperatingSystem = FirstLine(Run(client, "uname -a 2>/dev/null", commandTimeout, ct));
+        report.CurrentUser = FirstLine(Run(client, "whoami 2>/dev/null", commandTimeout, ct));
     }
 
     private static void ParseWindowsJson(string json, ServerDetailsReport report)
@@ -305,7 +366,8 @@ public class ServerDetailsService
 
     private static void PopulateAppSections(ServerDetailsReport report, ServerProfile server)
     {
-        report.Sections.Insert(0, new DetailSection
+        report.Sections.Clear();
+        report.Sections.Add(new DetailSection
         {
             Title = "Application Profile",
             Items =

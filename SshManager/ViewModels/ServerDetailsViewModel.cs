@@ -11,10 +11,12 @@ public partial class ServerDetailsViewModel : ObservableObject
     private readonly AppSettings _settings;
     private readonly string _groupName;
     private readonly ServerDetailsService _service;
+    private CancellationTokenSource? _loadCts;
 
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private ServerDetailsReport? _report;
     [ObservableProperty] private string _windowTitle = "Server Details";
+    [ObservableProperty] private string _statusMessage = string.Empty;
 
     public ServerDetailsViewModel(
         ServerItemViewModel server,
@@ -29,14 +31,26 @@ public partial class ServerDetailsViewModel : ObservableObject
         WindowTitle = $"Server Details — {server.Name}";
     }
 
-    public async Task LoadAsync() => await RefreshAsync();
-
-    [RelayCommand]
-    private async Task RefreshAsync()
+    public void PrepareForDisplay()
     {
-        if (IsLoading) return;
+        string? enc = null;
+        if (_server.UseCustomCredentials && !string.IsNullOrEmpty(_server.CustomPassword))
+            enc = CredentialService.Encrypt(_server.CustomPassword);
+
+        Report = _service.CreatePlaceholderReport(_server.ToModel(enc), _groupName, _server.Commands.Count);
+        IsLoading = true;
+        StatusMessage = "Connecting and collecting system information...";
+    }
+
+    public async Task LoadAsync()
+    {
+        _loadCts?.Cancel();
+        _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token;
 
         IsLoading = true;
+        StatusMessage = "Connecting and collecting system information...";
+
         try
         {
             string? enc = null;
@@ -44,14 +58,31 @@ public partial class ServerDetailsViewModel : ObservableObject
                 enc = CredentialService.Encrypt(_server.CustomPassword);
 
             var model = _server.ToModel(enc);
-            Report = await _service.CollectAsync(model, _settings, _groupName, _server.Commands.Count);
+            Report = await _service.CollectAsync(
+                model, _settings, _groupName, _server.Commands.Count, token);
+
+            StatusMessage = Report.IsSuccess
+                ? $"Updated at {Report.CollectedAt:HH:mm:ss}"
+                : Report.ErrorMessage ?? "Collection failed";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Collection cancelled";
         }
         finally
         {
             IsLoading = false;
+            _loadCts?.Dispose();
+            _loadCts = null;
         }
     }
 
-    public static string FormatPercent(double? value) =>
-        value.HasValue ? $"{value.Value:0.#}%" : "—";
+    public void CancelLoading() => _loadCts?.Cancel();
+
+    [RelayCommand]
+    private async Task RefreshAsync()
+    {
+        if (IsLoading) return;
+        await LoadAsync();
+    }
 }

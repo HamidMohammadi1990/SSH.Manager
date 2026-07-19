@@ -457,10 +457,13 @@ public partial class MainViewModel : ObservableObject
         if (SelectedServer == null) return;
 
         var groupName = Groups.FirstOrDefault(g => g.Id == SelectedServer.GroupId)?.Name ?? "(No Group)";
+        var vm = new ServerDetailsViewModel(SelectedServer, BuildSettings(), groupName, _serverDetailsService);
+        vm.PrepareForDisplay();
+
         var dialog = new ServerDetailsDialog
         {
             Owner = Application.Current.MainWindow,
-            DataContext = new ServerDetailsViewModel(SelectedServer, BuildSettings(), groupName, _serverDetailsService)
+            DataContext = vm
         };
         dialog.ShowDialog();
     }
