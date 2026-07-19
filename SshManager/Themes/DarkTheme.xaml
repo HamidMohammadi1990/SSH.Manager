@@ -182,7 +182,7 @@
                             <Track.Thumb>
                                 <Thumb MinHeight="28">
                                     <Thumb.Template>
-                                        <ControlTemplate>
+                                        <ControlTemplate TargetType="Thumb">
                                             <Border x:Name="ThumbBd" Background="{DynamicResource BgLightBrush}"
                                                     CornerRadius="5" Margin="1,1"/>
                                             <ControlTemplate.Triggers>
@@ -198,12 +198,12 @@
                                 </Thumb>
                             </Track.Thumb>
                         </Track>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TrackBg" Property="Opacity" Value="0.85"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="TrackBg" Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -234,7 +234,7 @@
                                    Grid.Column="1"
                                    Style="{StaticResource ModernScrollBar}"
                                    Orientation="Vertical"
-                                   Value="{TemplateBinding VerticalOffset, Mode=OneWay}"
+                                   Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
                                    Maximum="{TemplateBinding ScrollableHeight}"
                                    ViewportSize="{TemplateBinding ViewportHeight}"
                                    Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
