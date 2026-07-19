@@ -51,12 +51,14 @@ public class InteractiveSessionExecutor
         await using var stream = client.GetStream();
         var buffer = new byte[4096];
         var sessionOutput = new StringBuilder();
-        var readTimeoutMs = Math.Max(commandTimeoutSeconds * 1000, stepDelayMs);
+        var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
+        var maxReadMs = commandTimeoutSeconds * 1000;
+        var sendPauseMs = Math.Min(stepDelayMs, 150);
 
-        await ReadTelnetAsync(stream, buffer, sessionOutput, outputProgress, stepDelayMs, readTimeoutMs, ct);
+        await ReadTelnetAsync(stream, buffer, sessionOutput, outputProgress, responseIdleMs, maxReadMs, ct);
 
         if (!string.IsNullOrWhiteSpace(credential.Username))
-            await TelnetLoginAsync(stream, buffer, credential, stepDelayMs, readTimeoutMs, outputProgress, ct);
+            await TelnetLoginAsync(stream, buffer, credential, sendPauseMs, responseIdleMs, maxReadMs, outputProgress, ct);
 
         foreach (var step in steps)
         {
@@ -70,10 +72,10 @@ public class InteractiveSessionExecutor
                 var payload = ResolveStepPayload(step, credential);
                 var bytes = Encoding.ASCII.GetBytes(payload);
                 await stream.WriteAsync(bytes, ct);
-                await Task.Delay(stepDelayMs, ct);
+                await Task.Delay(sendPauseMs, ct);
 
                 var stepOutput = new StringBuilder();
-                await ReadTelnetAsync(stream, buffer, stepOutput, outputProgress, stepDelayMs, readTimeoutMs, ct);
+                await ReadTelnetAsync(stream, buffer, stepOutput, outputProgress, responseIdleMs, maxReadMs, ct);
 
                 result.Output = stepOutput.ToString().TrimEnd();
                 result.Status = ExecutionStatus.Success;
@@ -127,7 +129,11 @@ public class InteractiveSessionExecutor
                 throw new InvalidOperationException("Failed to establish SSH connection.");
 
             using var shell = client.CreateShellStream("vt100", 120, 40, 800, 600, 4096);
-            ReadShellOutput(shell, outputProgress, stepDelayMs, commandTimeoutSeconds * 1000);
+            var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
+            var maxReadMs = commandTimeoutSeconds * 1000;
+            var sendPauseMs = Math.Min(stepDelayMs, 150);
+
+            ReadShellOutput(shell, outputProgress, responseIdleMs, maxReadMs);
 
             foreach (var step in steps)
             {
@@ -141,9 +147,9 @@ public class InteractiveSessionExecutor
                     var payload = ResolveStepPayload(step, credential);
                     shell.Write(payload);
                     shell.Flush();
-                    Thread.Sleep(stepDelayMs);
+                    Thread.Sleep(sendPauseMs);
 
-                    var output = ReadShellOutput(shell, outputProgress, stepDelayMs, commandTimeoutSeconds * 1000);
+                    var output = ReadShellOutput(shell, outputProgress, responseIdleMs, maxReadMs);
                     result.Output = output.TrimEnd();
                     result.Status = ExecutionStatus.Success;
                 }
@@ -195,18 +201,24 @@ public class InteractiveSessionExecutor
         };
     }
 
+    private static int ResolveResponseIdleMs(int stepDelayMs) =>
+        Math.Clamp(stepDelayMs, 250, 1500);
+
     private static async Task ReadTelnetAsync(
         NetworkStream stream,
         byte[] buffer,
         StringBuilder output,
         IProgress<string>? progress,
-        int stepDelayMs,
+        int idleTimeoutMs,
         int maxWaitMs,
         CancellationToken ct)
     {
-        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+        var startedAt = DateTime.UtcNow;
+        var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
+        DateTime? lastDataAt = null;
+        const int pollIntervalMs = 25;
 
-        while (DateTime.UtcNow < deadline)
+        while (DateTime.UtcNow < overallDeadline)
         {
             if (stream.DataAvailable)
             {
@@ -216,33 +228,58 @@ public class InteractiveSessionExecutor
                 var text = Encoding.ASCII.GetString(buffer, 0, read);
                 output.Append(text);
                 progress?.Report(text);
-                deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+                lastDataAt = DateTime.UtcNow;
+                continue;
             }
-            else
+
+            if (lastDataAt.HasValue)
             {
-                await Task.Delay(Math.Max(stepDelayMs / 2, 50), ct);
+                if ((DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds >= idleTimeoutMs)
+                    break;
             }
+            else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
+            {
+                break;
+            }
+
+            await Task.Delay(pollIntervalMs, ct);
         }
     }
 
-    private static string ReadShellOutput(ShellStream shell, IProgress<string>? progress, int stepDelayMs, int maxWaitMs)
+    private static string ReadShellOutput(
+        ShellStream shell,
+        IProgress<string>? progress,
+        int idleTimeoutMs,
+        int maxWaitMs)
     {
         var output = new StringBuilder();
-        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+        var startedAt = DateTime.UtcNow;
+        var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
+        DateTime? lastDataAt = null;
+        const int pollIntervalMs = 25;
 
-        while (DateTime.UtcNow < deadline)
+        while (DateTime.UtcNow < overallDeadline)
         {
             var text = shell.Read();
             if (!string.IsNullOrEmpty(text))
             {
                 output.Append(text);
                 progress?.Report(text);
-                deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+                lastDataAt = DateTime.UtcNow;
+                continue;
             }
-            else
+
+            if (lastDataAt.HasValue)
             {
-                Thread.Sleep(Math.Max(stepDelayMs / 2, 50));
+                if ((DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds >= idleTimeoutMs)
+                    break;
             }
+            else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
+            {
+                break;
+            }
+
+            Thread.Sleep(pollIntervalMs);
         }
 
         return output.ToString();
@@ -252,23 +289,24 @@ public class InteractiveSessionExecutor
         NetworkStream stream,
         byte[] buffer,
         BatchCredential credential,
-        int stepDelayMs,
+        int sendPauseMs,
+        int idleTimeoutMs,
         int maxWaitMs,
         IProgress<string>? progress,
         CancellationToken ct)
     {
         var loginOutput = new StringBuilder();
-        await ReadTelnetAsync(stream, buffer, loginOutput, progress, stepDelayMs, maxWaitMs, ct);
+        await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct);
 
         await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Username + "\r\n"), ct);
-        await Task.Delay(stepDelayMs, ct);
-        await ReadTelnetAsync(stream, buffer, loginOutput, progress, stepDelayMs, maxWaitMs, ct);
+        await Task.Delay(sendPauseMs, ct);
+        await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct);
 
         if (!string.IsNullOrEmpty(credential.Password))
         {
             await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Password + "\r\n"), ct);
-            await Task.Delay(stepDelayMs, ct);
-            await ReadTelnetAsync(stream, buffer, loginOutput, progress, stepDelayMs, maxWaitMs, ct);
+            await Task.Delay(sendPauseMs, ct);
+            await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct);
         }
     }
 }
