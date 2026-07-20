@@ -103,8 +103,6 @@
         <Setter Property="FontFamily" Value="{StaticResource MainFont}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="HorizontalScrollBarVisibility" Value="Hidden"/>
-        <Setter Property="VerticalScrollBarVisibility" Value="Hidden"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="PasswordBox">
@@ -112,8 +110,8 @@
                             BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"
                             Padding="{TemplateBinding Padding}">
                         <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
-                                      HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
-                                      VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"/>
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
