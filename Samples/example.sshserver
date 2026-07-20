@@ -18,7 +18,8 @@ user.password=YourPasswordHere
 ping 192.168.105.85
 show version
 
-# type: s or ssh = SSH, t or telnet = Telnet
-# @credential is optional (uses app default credentials when omitted)
-# @targets is optional if ip= is set under @server
-# multiple @steps blocks are merged in order
+@steps
+show ip interface brief
+
+# Each @steps block becomes ONE command (lines inside are joined with Enter).
+# Multiple @steps blocks = multiple commands.

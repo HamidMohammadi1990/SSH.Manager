@@ -24,6 +24,7 @@ public static class ServerProfileFileParser
 
         var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
         string? section = null;
+        var currentStepLines = new List<string>();
 
         foreach (var rawLine in lines)
         {
@@ -36,7 +37,13 @@ public static class ServerProfileFileParser
                 var sectionName = line[1..].Trim();
                 if (KnownSections.Contains(sectionName))
                 {
+                    if (string.Equals(sectionName, "steps", StringComparison.OrdinalIgnoreCase))
+                        FinalizeStepBlock(profile, currentStepLines);
+
                     section = sectionName.ToLowerInvariant();
+                    if (section == "steps")
+                        currentStepLines = new List<string>();
+
                     continue;
                 }
 
@@ -55,7 +62,7 @@ public static class ServerProfileFileParser
                     ParseTargetLine(line, profile.Targets);
                     break;
                 case "steps":
-                    ParseStepLine(line, profile.Steps);
+                    ParseStepLine(line, currentStepLines);
                     break;
                 default:
                     throw new FormatException(
@@ -63,6 +70,7 @@ public static class ServerProfileFileParser
             }
         }
 
+        FinalizeStepBlock(profile, currentStepLines);
         Validate(profile);
         return profile;
     }
@@ -71,6 +79,15 @@ public static class ServerProfileFileParser
     {
         var content = File.ReadAllText(filePath, Encoding.UTF8);
         return Parse(content, filePath);
+    }
+
+    private static void FinalizeStepBlock(ServerProfileFile profile, List<string> currentStepLines)
+    {
+        if (currentStepLines.Count == 0)
+            return;
+
+        profile.Steps.Add(string.Join(Environment.NewLine, currentStepLines));
+        currentStepLines.Clear();
     }
 
     private static void ParseServerLine(string line, ServerProfileFile profile)
@@ -142,13 +159,13 @@ public static class ServerProfileFileParser
             targets.Add(host);
     }
 
-    private static void ParseStepLine(string line, List<string> steps)
+    private static void ParseStepLine(string line, List<string> currentStepLines)
     {
         var step = line.Trim();
         if (step.Length == 0)
             return;
 
-        steps.Add(step);
+        currentStepLines.Add(step);
     }
 
     private static ConnectionType ParseConnectionType(string value)
