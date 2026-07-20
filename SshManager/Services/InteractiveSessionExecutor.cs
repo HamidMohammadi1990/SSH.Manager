@@ -7,337 +7,385 @@ namespace SshManager.Services;
 
 public class InteractiveSessionExecutor
 {
-    public async Task<List<CommandExecutionResult>> ExecuteStepsAsync(
-        ServerProfile server,
-        BatchCredential credential,
-        IReadOnlyList<BatchStep> steps,
-        int stepDelayMs,
-        int connectionTimeoutSeconds,
-        int commandTimeoutSeconds,
-        IProgress<string>? outputProgress = null,
-        Action<BatchStep>? onStepStarted = null,
-        CancellationToken ct = default)
+  private const int PollIntervalMs = 20;
+  private const int PreSendBoostMs = 400;
+  private const int SendBufferMs = 15;
+
+  public async Task<List<CommandExecutionResult>> ExecuteStepsAsync(
+      ServerProfile server,
+      BatchCredential credential,
+      IReadOnlyList<BatchStep> steps,
+      int stepDelayMs,
+      int connectionTimeoutSeconds,
+      int commandTimeoutSeconds,
+      IProgress<string>? outputProgress = null,
+      Action<BatchStep>? onStepStarted = null,
+      CancellationToken ct = default)
+  {
+    return server.ConnectionType switch
     {
-        return server.ConnectionType switch
-        {
-            ConnectionType.Telnet => await ExecuteTelnetStepsAsync(
-                server, credential, steps, stepDelayMs, connectionTimeoutSeconds, commandTimeoutSeconds,
-                outputProgress, onStepStarted, ct),
-            ConnectionType.Ssh => await ExecuteSshStepsAsync(
-                server, credential, steps, stepDelayMs, connectionTimeoutSeconds, commandTimeoutSeconds,
-                outputProgress, onStepStarted, ct),
-            _ => throw new NotSupportedException($"Unsupported connection type: {server.ConnectionType}")
-        };
-    }
+      ConnectionType.Telnet => await ExecuteTelnetStepsAsync(
+          server, credential, steps, stepDelayMs, connectionTimeoutSeconds, commandTimeoutSeconds,
+          outputProgress, onStepStarted, ct),
+      ConnectionType.Ssh => await ExecuteSshStepsAsync(
+          server, credential, steps, stepDelayMs, connectionTimeoutSeconds, commandTimeoutSeconds,
+          outputProgress, onStepStarted, ct),
+      _ => throw new NotSupportedException($"Unsupported connection type: {server.ConnectionType}")
+    };
+  }
 
-    private static async Task<List<CommandExecutionResult>> ExecuteTelnetStepsAsync(
-        ServerProfile server,
-        BatchCredential credential,
-        IReadOnlyList<BatchStep> steps,
-        int stepDelayMs,
-        int connectionTimeoutSeconds,
-        int commandTimeoutSeconds,
-        IProgress<string>? outputProgress,
-        Action<BatchStep>? onStepStarted,
-        CancellationToken ct)
+  private static async Task<List<CommandExecutionResult>> ExecuteTelnetStepsAsync(
+      ServerProfile server,
+      BatchCredential credential,
+      IReadOnlyList<BatchStep> steps,
+      int stepDelayMs,
+      int connectionTimeoutSeconds,
+      int commandTimeoutSeconds,
+      IProgress<string>? outputProgress,
+      Action<BatchStep>? onStepStarted,
+      CancellationToken ct)
+  {
+    var results = new List<CommandExecutionResult>();
+
+    using var client = new TcpClient();
+    using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    connectCts.CancelAfter(TimeSpan.FromSeconds(connectionTimeoutSeconds));
+
+    await client.ConnectAsync(server.Host, server.Port, connectCts.Token);
+    await using var stream = client.GetStream();
+    var buffer = new byte[4096];
+    var sessionTail = new StringBuilder();
+    var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
+    var maxReadMs = commandTimeoutSeconds * 1000;
+
+    await ReadTelnetAsync(stream, buffer, sessionTail, outputProgress, responseIdleMs, maxReadMs,
+        BatchStepType.Command, ct);
+
+    if (!string.IsNullOrWhiteSpace(credential.Username))
+      await TelnetLoginAsync(stream, buffer, credential, sessionTail, responseIdleMs, maxReadMs, outputProgress, ct);
+
+    foreach (var step in steps)
     {
-        var results = new List<CommandExecutionResult>();
+      ct.ThrowIfCancellationRequested();
+      onStepStarted?.Invoke(step);
+      var result = CreateStepResult(step);
+      var sw = System.Diagnostics.Stopwatch.StartNew();
 
-        using var client = new TcpClient();
-        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        connectCts.CancelAfter(TimeSpan.FromSeconds(connectionTimeoutSeconds));
-
-        await client.ConnectAsync(server.Host, server.Port, connectCts.Token);
-        await using var stream = client.GetStream();
-        var buffer = new byte[4096];
-        var sessionOutput = new StringBuilder();
-        var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
-        var maxReadMs = commandTimeoutSeconds * 1000;
-        var sendPauseMs = Math.Min(stepDelayMs, 150);
-
-        await ReadTelnetAsync(stream, buffer, sessionOutput, outputProgress, responseIdleMs, maxReadMs, ct);
-
-        if (!string.IsNullOrWhiteSpace(credential.Username))
-            await TelnetLoginAsync(stream, buffer, credential, sendPauseMs, responseIdleMs, maxReadMs, outputProgress, ct);
-
-        foreach (var step in steps)
+      try
+      {
+        var subSteps = InteractiveStepExpander.Expand(step);
+        if (subSteps.Count == 0)
         {
-            ct.ThrowIfCancellationRequested();
-            onStepStarted?.Invoke(step);
-            var result = CreateStepResult(step);
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-
-            try
-            {
-                var subSteps = InteractiveStepExpander.Expand(step);
-                if (subSteps.Count == 0)
-                {
-                    result.Status = ExecutionStatus.Skipped;
-                    result.Output = string.Empty;
-                }
-                else
-                {
-                    var stepOutput = new StringBuilder();
-                    foreach (var subStep in subSteps)
-                    {
-                        ct.ThrowIfCancellationRequested();
-
-                        var payload = ResolveStepPayload(subStep, credential);
-                        var bytes = Encoding.ASCII.GetBytes(payload);
-                        await stream.WriteAsync(bytes, ct);
-                        await Task.Delay(sendPauseMs, ct);
-
-                        await ReadTelnetAsync(stream, buffer, stepOutput, outputProgress, responseIdleMs, maxReadMs, ct);
-                    }
-
-                    result.Output = stepOutput.ToString().TrimEnd();
-                    result.Status = ExecutionStatus.Success;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                result.Status = ExecutionStatus.Failed;
-                result.ErrorMessage = "Execution was cancelled.";
-                results.Add(result);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                result.Status = ExecutionStatus.Failed;
-                result.ErrorMessage = ex.Message;
-            }
-
-            sw.Stop();
-            result.Duration = sw.Elapsed;
-            result.FinishedAt = DateTime.Now;
-            results.Add(result);
-
-            if (result.Status == ExecutionStatus.Failed)
-                break;
+          result.Status = ExecutionStatus.Skipped;
+          result.Output = string.Empty;
         }
-
-        return results;
-    }
-
-    private static async Task<List<CommandExecutionResult>> ExecuteSshStepsAsync(
-        ServerProfile server,
-        BatchCredential credential,
-        IReadOnlyList<BatchStep> steps,
-        int stepDelayMs,
-        int connectionTimeoutSeconds,
-        int commandTimeoutSeconds,
-        IProgress<string>? outputProgress,
-        Action<BatchStep>? onStepStarted,
-        CancellationToken ct)
-    {
-        return await Task.Run(() =>
+        else
         {
-            var results = new List<CommandExecutionResult>();
+          var stepOutput = new StringBuilder();
+          foreach (var subStep in subSteps)
+          {
             ct.ThrowIfCancellationRequested();
 
-            using var client = ConnectionTestService.CreateSshClient(
-                server, credential.Username, credential.Password, null, connectionTimeoutSeconds);
-            client.Connect();
+            await EnsureReadyBeforeSendTelnetAsync(stream, buffer, sessionTail, outputProgress,
+                responseIdleMs, ct);
 
-            if (!client.IsConnected)
-                throw new InvalidOperationException("Failed to establish SSH connection.");
+            var payload = ResolveStepPayload(subStep, credential);
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(payload), ct);
+            await Task.Delay(SendBufferMs, ct);
 
-            using var shell = client.CreateShellStream("vt100", 120, 40, 800, 600, 4096);
-            var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
-            var maxReadMs = commandTimeoutSeconds * 1000;
-            var sendPauseMs = Math.Min(stepDelayMs, 150);
+            await ReadTelnetAsync(stream, buffer, stepOutput, outputProgress, responseIdleMs, maxReadMs,
+                subStep.Type, ct, sessionTail);
+          }
 
-            ReadShellOutput(shell, outputProgress, responseIdleMs, maxReadMs);
-
-            foreach (var step in steps)
-            {
-                ct.ThrowIfCancellationRequested();
-                onStepStarted?.Invoke(step);
-                var result = CreateStepResult(step);
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-
-                try
-                {
-                    var subSteps = InteractiveStepExpander.Expand(step);
-                    if (subSteps.Count == 0)
-                    {
-                        result.Status = ExecutionStatus.Skipped;
-                        result.Output = string.Empty;
-                    }
-                    else
-                    {
-                        var stepOutput = new StringBuilder();
-                        foreach (var subStep in subSteps)
-                        {
-                            ct.ThrowIfCancellationRequested();
-
-                            var payload = ResolveStepPayload(subStep, credential);
-                            shell.Write(payload);
-                            shell.Flush();
-                            Thread.Sleep(sendPauseMs);
-
-                            stepOutput.Append(ReadShellOutput(shell, outputProgress, responseIdleMs, maxReadMs));
-                        }
-
-                        result.Output = stepOutput.ToString().TrimEnd();
-                        result.Status = ExecutionStatus.Success;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    result.Status = ExecutionStatus.Failed;
-                    result.ErrorMessage = "Execution was cancelled.";
-                    results.Add(result);
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    result.Status = ExecutionStatus.Failed;
-                    result.ErrorMessage = ex.Message;
-                }
-
-                sw.Stop();
-                result.Duration = sw.Elapsed;
-                result.FinishedAt = DateTime.Now;
-                results.Add(result);
-
-                if (result.Status == ExecutionStatus.Failed)
-                    break;
-            }
-
-            client.Disconnect();
-            return results;
-        }, ct);
-    }
-
-    private static CommandExecutionResult CreateStepResult(BatchStep step)
-    {
-        return new CommandExecutionResult
-        {
-            CommandId = Guid.NewGuid().ToString(),
-            CommandText = step.DisplayText,
-            StartedAt = DateTime.Now,
-            Status = ExecutionStatus.Running
-        };
-    }
-
-    private static string ResolveStepPayload(BatchStep step, BatchCredential credential)
-    {
-        return step.Type switch
-        {
-            BatchStepType.Enter => "\r\n",
-            BatchStepType.Password => credential.PasswordForStep + "\r\n",
-            BatchStepType.Command => step.Text + "\r\n",
-            _ => "\r\n"
-        };
-    }
-
-    private static int ResolveResponseIdleMs(int stepDelayMs) =>
-        Math.Clamp(stepDelayMs, 250, 1500);
-
-    private static async Task ReadTelnetAsync(
-        NetworkStream stream,
-        byte[] buffer,
-        StringBuilder output,
-        IProgress<string>? progress,
-        int idleTimeoutMs,
-        int maxWaitMs,
-        CancellationToken ct)
-    {
-        var startedAt = DateTime.UtcNow;
-        var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
-        DateTime? lastDataAt = null;
-        const int pollIntervalMs = 25;
-
-        while (DateTime.UtcNow < overallDeadline)
-        {
-            if (stream.DataAvailable)
-            {
-                var read = await stream.ReadAsync(buffer, ct);
-                if (read == 0) break;
-
-                var text = Encoding.ASCII.GetString(buffer, 0, read);
-                output.Append(text);
-                progress?.Report(text);
-                lastDataAt = DateTime.UtcNow;
-                continue;
-            }
-
-            if (lastDataAt.HasValue)
-            {
-                if ((DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds >= idleTimeoutMs)
-                    break;
-            }
-            else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
-            {
-                break;
-            }
-
-            await Task.Delay(pollIntervalMs, ct);
+          result.Output = stepOutput.ToString().TrimEnd();
+          result.Status = ExecutionStatus.Success;
         }
+      }
+      catch (OperationCanceledException)
+      {
+        result.Status = ExecutionStatus.Failed;
+        result.ErrorMessage = "Execution was cancelled.";
+        results.Add(result);
+        throw;
+      }
+      catch (Exception ex)
+      {
+        result.Status = ExecutionStatus.Failed;
+        result.ErrorMessage = ex.Message;
+      }
+
+      sw.Stop();
+      result.Duration = sw.Elapsed;
+      result.FinishedAt = DateTime.Now;
+      results.Add(result);
+
+      if (result.Status == ExecutionStatus.Failed)
+        break;
     }
 
-    private static string ReadShellOutput(
-        ShellStream shell,
-        IProgress<string>? progress,
-        int idleTimeoutMs,
-        int maxWaitMs)
+    return results;
+  }
+
+  private static async Task<List<CommandExecutionResult>> ExecuteSshStepsAsync(
+      ServerProfile server,
+      BatchCredential credential,
+      IReadOnlyList<BatchStep> steps,
+      int stepDelayMs,
+      int connectionTimeoutSeconds,
+      int commandTimeoutSeconds,
+      IProgress<string>? outputProgress,
+      Action<BatchStep>? onStepStarted,
+      CancellationToken ct)
+  {
+    return await Task.Run(() =>
     {
-        var output = new StringBuilder();
-        var startedAt = DateTime.UtcNow;
-        var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
-        DateTime? lastDataAt = null;
-        const int pollIntervalMs = 25;
+      var results = new List<CommandExecutionResult>();
+      ct.ThrowIfCancellationRequested();
 
-        while (DateTime.UtcNow < overallDeadline)
+      using var client = ConnectionTestService.CreateSshClient(
+          server, credential.Username, credential.Password, null, connectionTimeoutSeconds);
+      client.Connect();
+
+      if (!client.IsConnected)
+        throw new InvalidOperationException("Failed to establish SSH connection.");
+
+      using var shell = client.CreateShellStream("vt100", 120, 40, 800, 600, 4096);
+      var sessionTail = new StringBuilder();
+      var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
+      var maxReadMs = commandTimeoutSeconds * 1000;
+
+      ReadShellOutput(shell, sessionTail, outputProgress, responseIdleMs, maxReadMs, BatchStepType.Command);
+
+      foreach (var step in steps)
+      {
+        ct.ThrowIfCancellationRequested();
+        onStepStarted?.Invoke(step);
+        var result = CreateStepResult(step);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        try
         {
-            var text = shell.Read();
-            if (!string.IsNullOrEmpty(text))
+          var subSteps = InteractiveStepExpander.Expand(step);
+          if (subSteps.Count == 0)
+          {
+            result.Status = ExecutionStatus.Skipped;
+            result.Output = string.Empty;
+          }
+          else
+          {
+            var stepOutput = new StringBuilder();
+            foreach (var subStep in subSteps)
             {
-                output.Append(text);
-                progress?.Report(text);
-                lastDataAt = DateTime.UtcNow;
-                continue;
+              ct.ThrowIfCancellationRequested();
+
+              EnsureReadyBeforeSendShell(shell, sessionTail, outputProgress, responseIdleMs);
+
+              var payload = ResolveStepPayload(subStep, credential);
+              shell.Write(payload);
+              shell.Flush();
+              Thread.Sleep(SendBufferMs);
+
+              stepOutput.Append(ReadShellOutput(shell, sessionTail, outputProgress, responseIdleMs, maxReadMs,
+                  subStep.Type));
             }
 
-            if (lastDataAt.HasValue)
-            {
-                if ((DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds >= idleTimeoutMs)
-                    break;
-            }
-            else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
-            {
-                break;
-            }
-
-            Thread.Sleep(pollIntervalMs);
+            result.Output = stepOutput.ToString().TrimEnd();
+            result.Status = ExecutionStatus.Success;
+          }
+        }
+        catch (OperationCanceledException)
+        {
+          result.Status = ExecutionStatus.Failed;
+          result.ErrorMessage = "Execution was cancelled.";
+          results.Add(result);
+          throw;
+        }
+        catch (Exception ex)
+        {
+          result.Status = ExecutionStatus.Failed;
+          result.ErrorMessage = ex.Message;
         }
 
-        return output.ToString();
-    }
+        sw.Stop();
+        result.Duration = sw.Elapsed;
+        result.FinishedAt = DateTime.Now;
+        results.Add(result);
 
-    private static async Task TelnetLoginAsync(
-        NetworkStream stream,
-        byte[] buffer,
-        BatchCredential credential,
-        int sendPauseMs,
-        int idleTimeoutMs,
-        int maxWaitMs,
-        IProgress<string>? progress,
-        CancellationToken ct)
+        if (result.Status == ExecutionStatus.Failed)
+          break;
+      }
+
+      client.Disconnect();
+      return results;
+    }, ct);
+  }
+
+  private static CommandExecutionResult CreateStepResult(BatchStep step) =>
+      new()
+      {
+        CommandId = Guid.NewGuid().ToString(),
+        CommandText = step.DisplayText,
+        StartedAt = DateTime.Now,
+        Status = ExecutionStatus.Running
+      };
+
+  private static string ResolveStepPayload(BatchStep step, BatchCredential credential) =>
+      step.Type switch
+      {
+        BatchStepType.Enter => "\r\n",
+        BatchStepType.Password => credential.PasswordForStep + "\r\n",
+        BatchStepType.Command => step.Text + "\r\n",
+        _ => "\r\n"
+      };
+
+  private static int ResolveResponseIdleMs(int stepDelayMs) =>
+      Math.Clamp(stepDelayMs, 250, 1500);
+
+  private static async Task EnsureReadyBeforeSendTelnetAsync(
+      NetworkStream stream,
+      byte[] buffer,
+      StringBuilder sessionTail,
+      IProgress<string>? progress,
+      int baseIdleMs,
+      CancellationToken ct)
+  {
+    if (InteractiveSessionReadiness.IsReadyToSend(sessionTail.ToString()))
+      return;
+
+    var drain = new StringBuilder();
+    await ReadTelnetAsync(stream, buffer, drain, progress, baseIdleMs, PreSendBoostMs,
+        BatchStepType.Command, ct, sessionTail);
+  }
+
+  private static void EnsureReadyBeforeSendShell(
+      ShellStream shell,
+      StringBuilder sessionTail,
+      IProgress<string>? progress,
+      int baseIdleMs)
+  {
+    if (InteractiveSessionReadiness.IsReadyToSend(sessionTail.ToString()))
+      return;
+
+    ReadShellOutput(shell, sessionTail, progress, baseIdleMs, PreSendBoostMs, BatchStepType.Command);
+  }
+
+  private static async Task ReadTelnetAsync(
+      NetworkStream stream,
+      byte[] buffer,
+      StringBuilder output,
+      IProgress<string>? progress,
+      int idleTimeoutMs,
+      int maxWaitMs,
+      BatchStepType sentStepType,
+      CancellationToken ct,
+      StringBuilder? sessionTail = null)
+  {
+    var startedAt = DateTime.UtcNow;
+    var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
+    DateTime? lastDataAt = null;
+
+    while (DateTime.UtcNow < overallDeadline)
     {
-        var loginOutput = new StringBuilder();
-        await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct);
+      if (stream.DataAvailable)
+      {
+        var read = await stream.ReadAsync(buffer, ct);
+        if (read == 0)
+          break;
 
-        await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Username + "\r\n"), ct);
-        await Task.Delay(sendPauseMs, ct);
-        await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct);
+        var text = Encoding.ASCII.GetString(buffer, 0, read);
+        output.Append(text);
+        progress?.Report(text);
+        if (sessionTail != null)
+          InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
 
-        if (!string.IsNullOrEmpty(credential.Password))
-        {
-            await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Password + "\r\n"), ct);
-            await Task.Delay(sendPauseMs, ct);
-            await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct);
-        }
+        lastDataAt = DateTime.UtcNow;
+        continue;
+      }
+
+      if (lastDataAt.HasValue)
+      {
+        var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
+        if (InteractiveSessionReadiness.ShouldBreakRead(output.ToString(), sentStepType, idleMs, idleTimeoutMs))
+          break;
+      }
+      else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
+      {
+        break;
+      }
+
+      await Task.Delay(PollIntervalMs, ct);
     }
+  }
+
+  private static string ReadShellOutput(
+      ShellStream shell,
+      StringBuilder sessionTail,
+      IProgress<string>? progress,
+      int idleTimeoutMs,
+      int maxWaitMs,
+      BatchStepType sentStepType,
+      StringBuilder? stepOutput = null)
+  {
+    var output = stepOutput ?? new StringBuilder();
+    var startedAt = DateTime.UtcNow;
+    var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
+    DateTime? lastDataAt = null;
+
+    while (DateTime.UtcNow < overallDeadline)
+    {
+      var text = shell.Read();
+      if (!string.IsNullOrEmpty(text))
+      {
+        output.Append(text);
+        progress?.Report(text);
+        InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
+
+        lastDataAt = DateTime.UtcNow;
+        continue;
+      }
+
+      if (lastDataAt.HasValue)
+      {
+        var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
+        if (InteractiveSessionReadiness.ShouldBreakRead(output.ToString(), sentStepType, idleMs, idleTimeoutMs))
+          break;
+      }
+      else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
+      {
+        break;
+      }
+
+      Thread.Sleep(PollIntervalMs);
+    }
+
+    return output.ToString();
+  }
+
+  private static async Task TelnetLoginAsync(
+      NetworkStream stream,
+      byte[] buffer,
+      BatchCredential credential,
+      StringBuilder sessionTail,
+      int idleTimeoutMs,
+      int maxWaitMs,
+      IProgress<string>? progress,
+      CancellationToken ct)
+  {
+    var loginOutput = new StringBuilder();
+    await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs,
+        BatchStepType.Command, ct, sessionTail);
+
+    await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Username + "\r\n"), ct);
+    await Task.Delay(SendBufferMs, ct);
+    await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs,
+        BatchStepType.Command, ct, sessionTail);
+
+    if (!string.IsNullOrEmpty(credential.Password))
+    {
+      await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Password + "\r\n"), ct);
+      await Task.Delay(SendBufferMs, ct);
+      await ReadTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs,
+          BatchStepType.Password, ct, sessionTail);
+    }
+  }
 }
