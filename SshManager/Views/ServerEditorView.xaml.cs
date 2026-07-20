@@ -15,4 +15,9 @@ public partial class ServerEditorView : UserControl
 
     private void ServerField_Changed(object sender, RoutedEventArgs e) => ViewModel?.OnServerFieldChanged();
     private void CommandField_Changed(object sender, TextChangedEventArgs e) => ViewModel?.OnCommandFieldChanged();
+
+    private void RevealCustomPasswordToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        CustomPasswordBox.PasswordChar = RevealCustomPasswordToggle.IsChecked == true ? '\0' : '●';
+    }
 }

@@ -64,9 +64,9 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="280" MinWidth="220"/>
                 <ColumnDefinition Width="1"/>
-                <ColumnDefinition Width="*" MinWidth="350"/>
-                <ColumnDefinition Width="1"/>
-                <ColumnDefinition Width="380" MinWidth="300"/>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="380" MinWidth="250" MaxWidth="900"/>
             </Grid.ColumnDefinitions>
 
             <!-- Left: Servers Panel -->
@@ -205,7 +205,7 @@
                            Visibility="{Binding HasOpenTabs, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}"/>
             </Grid>
 
-            <Border Grid.Column="3" Background="{DynamicResource BorderBrush}"/>
+            <GridSplitter Grid.Column="3" Style="{DynamicResource VerticalGridSplitter}"/>
 
             <!-- Right: Execution Panel -->
             <Border Grid.Column="4" Background="{DynamicResource BgMediumBrush}" Padding="12">

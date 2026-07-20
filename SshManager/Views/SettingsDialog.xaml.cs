@@ -17,17 +17,22 @@ public partial class SettingsDialog : Window
         Loaded += (_, _) =>
         {
             UsernameBox.Text = DefaultUsername;
-            PasswordBox.Password = DefaultPassword;
+            PasswordBox.Text = DefaultPassword;
             ConnectionTimeoutBox.Text = ConnectionTimeout.ToString();
             CommandTimeoutBox.Text = CommandTimeout.ToString();
             BatchStepDelayBox.Text = BatchStepDelay.ToString();
         };
     }
 
+    private void RevealPasswordToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        PasswordBox.PasswordChar = RevealPasswordToggle.IsChecked == true ? '\0' : '●';
+    }
+
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         DefaultUsername = UsernameBox.Text;
-        DefaultPassword = PasswordBox.Password;
+        DefaultPassword = PasswordBox.Text;
 
         if (!int.TryParse(ConnectionTimeoutBox.Text, out var connTimeout) || connTimeout < 1)
         {

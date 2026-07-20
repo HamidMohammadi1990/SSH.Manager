@@ -54,8 +54,11 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
-                    <Grid>
+                    <Grid MinHeight="{TemplateBinding MinHeight}">
                         <ToggleButton x:Name="ToggleButton"
+                                      MinHeight="{TemplateBinding MinHeight}"
+                                      VerticalAlignment="Stretch"
+                                      HorizontalAlignment="Stretch"
                                       Background="{TemplateBinding Background}"
                                       BorderBrush="{TemplateBinding BorderBrush}"
                                       BorderThickness="{TemplateBinding BorderThickness}"

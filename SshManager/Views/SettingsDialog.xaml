@@ -25,7 +25,19 @@
                 <TextBox x:Name="UsernameBox" Style="{DynamicResource FormTextBox}" Margin="0,0,0,12"/>
 
                 <TextBlock Text="Password" Style="{DynamicResource FieldLabel}"/>
-                <PasswordBox x:Name="PasswordBox" Margin="0,0,0,20"/>
+                <Grid Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="PasswordBox" Grid.Column="0"
+                             PasswordChar="●"
+                             Style="{DynamicResource FormTextBox}"/>
+                    <ToggleButton x:Name="RevealPasswordToggle" Grid.Column="1"
+                                  Style="{DynamicResource PasswordRevealToggle}"
+                                  Checked="RevealPasswordToggle_Changed"
+                                  Unchecked="RevealPasswordToggle_Changed"/>
+                </Grid>
 
                 <TextBlock Text="Timeouts &amp; Delays" Style="{DynamicResource SectionTitle}"/>
                 <TextBlock Text="Connection timeout applies to SSH/Telnet connect. Command timeout applies to each Run All command. Step delay applies to batch jobs unless overridden in the batch file."
