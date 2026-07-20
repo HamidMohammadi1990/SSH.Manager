@@ -152,6 +152,9 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Button Content="+ Add" Style="{DynamicResource PrimaryButton}" Margin="0,0,4,0"
                                     Command="{Binding AddServerCommand}"/>
+                            <Button Content="📂 Import" Style="{DynamicResource SecondaryButton}" Margin="0,0,4,0"
+                                    Command="{Binding ImportServerFromFileCommand}"
+                                    ToolTip="Import server from .sshserver file"/>
                             <Button Content="▲" Style="{DynamicResource IconButton}" Command="{Binding MoveServerUpCommand}" ToolTip="Move Up"/>
                             <Button Content="▼" Style="{DynamicResource IconButton}" Command="{Binding MoveServerDownCommand}" ToolTip="Move Down"/>
                         </StackPanel>

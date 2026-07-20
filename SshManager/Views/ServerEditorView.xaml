@@ -151,7 +151,7 @@
                 <TextBlock Text="Commands" Style="{DynamicResource SectionTitle}" Margin="0,0,0,8"/>
                 <Border Grid.Row="1" Background="{DynamicResource BgDarkBrush}" CornerRadius="8" Padding="4"
                         MinHeight="140" MaxHeight="220">
-                    <ListBox ItemsSource="{Binding Commands}"
+                    <ListBox x:Name="CommandListBox" Grid.Row="1" ItemsSource="{Binding Commands}"
                              SelectedItem="{Binding DataContext.SelectedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                              Style="{DynamicResource FlatListBox}"
                              ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -161,6 +161,10 @@
                                          Background="Transparent" BorderThickness="0"
                                          FontFamily="{DynamicResource MonoFont}" FontSize="12"
                                          MinHeight="32" Padding="4,6"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         VerticalScrollBarVisibility="Auto"
+                                         PreviewKeyDown="CommandTextBox_PreviewKeyDown"
                                          TextChanged="CommandField_Changed"/>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

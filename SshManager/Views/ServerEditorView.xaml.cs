@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using SshManager.ViewModels;
 
 namespace SshManager.Views;
@@ -16,6 +17,20 @@ public partial class ServerEditorView : UserControl
 
     private void ServerField_Changed(object sender, RoutedEventArgs e) => ViewModel?.OnServerFieldChanged();
     private void CommandField_Changed(object sender, TextChangedEventArgs e) => ViewModel?.OnCommandFieldChanged();
+
+    private void CommandTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || sender is not TextBox textBox)
+            return;
+
+        e.Handled = true;
+
+        var caret = textBox.CaretIndex;
+        var newLine = Environment.NewLine;
+        textBox.Text = textBox.Text.Insert(caret, newLine);
+        textBox.CaretIndex = caret + newLine.Length;
+        ViewModel?.OnCommandFieldChanged();
+    }
 
     private void ResetPasswordFields()
     {

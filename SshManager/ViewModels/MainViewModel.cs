@@ -435,6 +435,79 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void ImportServerFromFile()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Server profile files (*.sshserver;*.sshsrv;*.txt)|*.sshserver;*.sshsrv;*.txt|All files (*.*)|*.*",
+            DefaultExt = "sshserver"
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var profile = ServerProfileFileParser.ParseFile(dialog.FileName);
+            var groupId = SelectedGroup?.Id ?? string.Empty;
+
+            var existing = Servers.FirstOrDefault(s =>
+                s.Name.Equals(profile.ServerName, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                var replace = DialogService.ShowYesNo(
+                    $"A server named '{profile.ServerName}' already exists. Replace it?",
+                    "Duplicate Server Name",
+                    DialogKind.Warning);
+                if (replace != MessageBoxResult.Yes) return;
+
+                CloseTabForServer(existing);
+                Servers.Remove(existing);
+            }
+
+            var server = new ServerItemViewModel
+            {
+                Name = profile.ServerName,
+                Host = profile.Host,
+                Port = profile.Port,
+                ConnectionType = profile.ConnectionType,
+                Description = profile.Description,
+                GroupId = groupId,
+                CreatedAt = DateTime.Now,
+                Order = Servers.Count,
+                UseCustomCredentials = profile.HasCredentials,
+                CustomUsername = string.IsNullOrWhiteSpace(profile.Username) ? null : profile.Username,
+                CustomPassword = profile.Password
+            };
+
+            for (var i = 0; i < profile.Steps.Count; i++)
+            {
+                server.Commands.Add(new CommandItemViewModel
+                {
+                    Text = profile.Steps[i],
+                    Order = i
+                });
+            }
+
+            Servers.Add(server);
+            ReorderServers();
+            SelectedServer = server;
+            OpenOrSelectTab(server);
+            SaveData();
+
+            StatusMessage = $"Imported and saved server '{server.Name}' ({profile.Steps.Count} command(s))";
+            DialogService.ShowInfo(
+                $"Server '{server.Name}' imported and saved.\n" +
+                $"Host: {server.Host}:{server.Port} ({server.ConnectionType})\n" +
+                $"Commands: {server.Commands.Count}",
+                "Import Server");
+        }
+        catch (Exception ex)
+        {
+            DialogService.ShowError(ex.Message, "Import Server Failed");
+        }
+    }
+
+    [RelayCommand]
     private void RemoveServer(ServerItemViewModel? server = null)
     {
         var target = server ?? SelectedServer;

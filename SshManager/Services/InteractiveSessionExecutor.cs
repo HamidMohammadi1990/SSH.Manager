@@ -197,8 +197,17 @@ public class InteractiveSessionExecutor
         {
             BatchStepType.Enter => "\r\n",
             BatchStepType.Password => credential.PasswordForStep + "\r\n",
-            _ => step.Text + "\r\n"
+            _ => NormalizeMultilinePayload(step.Text)
         };
+    }
+
+    private static string NormalizeMultilinePayload(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return "\r\n";
+
+        var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        return string.Join("\r\n", lines) + "\r\n";
     }
 
     private static int ResolveResponseIdleMs(int stepDelayMs) =>
