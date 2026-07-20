@@ -17,7 +17,7 @@ public partial class SettingsDialog : Window
         Loaded += (_, _) =>
         {
             UsernameBox.Text = DefaultUsername;
-            PasswordBox.Text = DefaultPassword;
+            PasswordHiddenBox.Password = DefaultPassword;
             ConnectionTimeoutBox.Text = ConnectionTimeout.ToString();
             CommandTimeoutBox.Text = CommandTimeout.ToString();
             BatchStepDelayBox.Text = BatchStepDelay.ToString();
@@ -26,13 +26,30 @@ public partial class SettingsDialog : Window
 
     private void RevealPasswordToggle_Changed(object sender, RoutedEventArgs e)
     {
-        PasswordBox.PasswordChar = RevealPasswordToggle.IsChecked == true ? '\0' : '●';
+        if (RevealPasswordToggle.IsChecked == true)
+        {
+            PasswordVisibleBox.Text = PasswordHiddenBox.Password;
+            PasswordHiddenBox.Visibility = Visibility.Collapsed;
+            PasswordVisibleBox.Visibility = Visibility.Visible;
+            PasswordVisibleBox.Focus();
+            return;
+        }
+
+        PasswordHiddenBox.Password = PasswordVisibleBox.Text;
+        PasswordVisibleBox.Visibility = Visibility.Collapsed;
+        PasswordHiddenBox.Visibility = Visibility.Visible;
+        PasswordHiddenBox.Focus();
     }
+
+    private string CurrentPassword =>
+        RevealPasswordToggle.IsChecked == true
+            ? PasswordVisibleBox.Text
+            : PasswordHiddenBox.Password;
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         DefaultUsername = UsernameBox.Text;
-        DefaultPassword = PasswordBox.Text;
+        DefaultPassword = CurrentPassword;
 
         if (!int.TryParse(ConnectionTimeoutBox.Text, out var connTimeout) || connTimeout < 1)
         {

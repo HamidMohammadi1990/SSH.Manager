@@ -30,9 +30,10 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="PasswordBox" Grid.Column="0"
-                             PasswordChar="●"
-                             Style="{DynamicResource FormTextBox}"/>
+                    <Grid Grid.Column="0">
+                        <PasswordBox x:Name="PasswordHiddenBox" Style="{DynamicResource FormPasswordBox}"/>
+                        <TextBox x:Name="PasswordVisibleBox" Style="{DynamicResource FormTextBox}" Visibility="Collapsed"/>
+                    </Grid>
                     <ToggleButton x:Name="RevealPasswordToggle" Grid.Column="1"
                                   Style="{DynamicResource PasswordRevealToggle}"
                                   Checked="RevealPasswordToggle_Changed"
