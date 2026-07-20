@@ -15,5 +15,6 @@ public class ServerProfile
     public string? CustomUsername { get; set; }
     public string? CustomPasswordEncrypted { get; set; }
     public string? PrivateKeyPath { get; set; }
+    public List<string> Targets { get; set; } = new();
     public List<CommandItem> Commands { get; set; } = new();
 }

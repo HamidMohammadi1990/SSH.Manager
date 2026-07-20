@@ -30,113 +30,155 @@ public class ExecutionService
                 ? gn
                 : "Ungrouped";
 
-            var serverResult = new ServerExecutionResult
-            {
-                ServerId = server.Id,
-                ServerName = server.Name,
-                GroupName = groupName,
-                Status = ExecutionStatus.Running
-            };
-
-            ServerStarted?.Invoke(serverResult);
-            var serverSw = System.Diagnostics.Stopwatch.StartNew();
-
             var commands = server.Commands.OrderBy(c => c.Order).ToList();
             if (commands.Count == 0)
             {
-                serverResult.Status = ExecutionStatus.Skipped;
-                serverResult.Duration = TimeSpan.Zero;
-                session.Servers.Add(serverResult);
-                ServerCompleted?.Invoke(serverResult);
+                var skipped = new ServerExecutionResult
+                {
+                    ServerId = server.Id,
+                    ServerName = server.Name,
+                    GroupName = groupName,
+                    Status = ExecutionStatus.Skipped,
+                    Duration = TimeSpan.Zero
+                };
+                session.Servers.Add(skipped);
+                ServerCompleted?.Invoke(skipped);
                 continue;
             }
 
-            try
+            var endpoints = ServerTargetResolver.ResolveEndpoints(server);
+            if (endpoints.Count == 0)
             {
-                var steps = commands.Select(c => new BatchStep
+                var skipped = new ServerExecutionResult
                 {
-                    Type = BatchStepType.Command,
-                    Text = c.Text
-                }).ToList();
-
-                var credential = BuildCredential(server, settings);
-                var progress = new Progress<string>(line => OutputReceived?.Invoke($"[{server.Name}] {line}"));
-                var commandIndex = 0;
-
-                var stepResults = await _sessionExecutor.ExecuteStepsAsync(
-                    server,
-                    credential,
-                    steps,
-                    settings.BatchStepDelayMs,
-                    settings.ConnectionTimeoutSeconds,
-                    settings.CommandTimeoutSeconds,
-                    progress,
-                    _ =>
-                    {
-                        if (commandIndex >= commands.Count) return;
-
-                        var command = commands[commandIndex++];
-                        CommandStarted?.Invoke(new CommandExecutionResult
-                        {
-                            CommandId = command.Id,
-                            CommandText = command.Text,
-                            Status = ExecutionStatus.Running
-                        }, server.Name);
-                    },
-                    ct);
-
-                var hasFailure = false;
-                for (var i = 0; i < stepResults.Count; i++)
-                {
-                    var stepResult = stepResults[i];
-                    if (i < commands.Count)
-                    {
-                        stepResult.CommandId = commands[i].Id;
-                        stepResult.CommandText = commands[i].Text;
-                    }
-
-                    serverResult.Commands.Add(stepResult);
-                    CommandCompleted?.Invoke(stepResult, server.Name);
-
-                    if (stepResult.Status == ExecutionStatus.Failed)
-                        hasFailure = true;
-                }
-
-                serverResult.Status = stepResults.Count > 0 && !hasFailure
-                    ? ExecutionStatus.Success
-                    : ExecutionStatus.Failed;
-            }
-            catch (OperationCanceledException)
-            {
-                serverResult.Status = ExecutionStatus.Failed;
-                throw;
-            }
-            catch (Exception ex)
-            {
-                serverResult.Status = ExecutionStatus.Failed;
-                var failure = new CommandExecutionResult
-                {
-                    CommandId = Guid.NewGuid().ToString(),
-                    CommandText = "(session)",
-                    Status = ExecutionStatus.Failed,
-                    ErrorMessage = ex.Message,
-                    StartedAt = DateTime.Now,
-                    FinishedAt = DateTime.Now
+                    ServerId = server.Id,
+                    ServerName = server.Name,
+                    GroupName = groupName,
+                    Status = ExecutionStatus.Skipped,
+                    Duration = TimeSpan.Zero
                 };
-                serverResult.Commands.Add(failure);
-                CommandCompleted?.Invoke(failure, server.Name);
-                OutputReceived?.Invoke($"[{server.Name}] ERROR: {ex.Message}");
+                session.Servers.Add(skipped);
+                ServerCompleted?.Invoke(skipped);
+                continue;
             }
 
-            serverSw.Stop();
-            serverResult.Duration = serverSw.Elapsed;
-            session.Servers.Add(serverResult);
-            ServerCompleted?.Invoke(serverResult);
+            foreach (var endpoint in endpoints)
+            {
+                ct.ThrowIfCancellationRequested();
+                await ExecuteServerOnEndpointAsync(
+                    server, endpoint, groupName, commands, settings, session, ct);
+            }
         }
 
         session.FinishedAt = DateTime.Now;
         SessionCompleted?.Invoke(session);
         return session;
+    }
+
+    private async Task ExecuteServerOnEndpointAsync(
+        ServerProfile server,
+        string endpoint,
+        string groupName,
+        List<CommandItem> commands,
+        AppSettings settings,
+        ExecutionSession session,
+        CancellationToken ct)
+    {
+        var displayName = ServerTargetResolver.GetExecutionDisplayName(server.Name, endpoint);
+        var serverResult = new ServerExecutionResult
+        {
+            ServerId = server.Id,
+            ServerName = server.Name,
+            TargetHost = endpoint,
+            GroupName = groupName,
+            Status = ExecutionStatus.Running
+        };
+
+        ServerStarted?.Invoke(serverResult);
+        var serverSw = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            var targetServer = ServerTargetResolver.CloneForTarget(server, endpoint);
+            var steps = commands.Select(c => new BatchStep
+            {
+                Type = BatchStepType.Command,
+                Text = c.Text
+            }).ToList();
+
+            var credential = BuildCredential(targetServer, settings);
+            var progress = new Progress<string>(line => OutputReceived?.Invoke($"[{displayName}] {line}"));
+            var commandIndex = 0;
+
+            var stepResults = await _sessionExecutor.ExecuteStepsAsync(
+                targetServer,
+                credential,
+                steps,
+                settings.BatchStepDelayMs,
+                settings.ConnectionTimeoutSeconds,
+                settings.CommandTimeoutSeconds,
+                progress,
+                _ =>
+                {
+                    if (commandIndex >= commands.Count) return;
+
+                    var command = commands[commandIndex++];
+                    CommandStarted?.Invoke(new CommandExecutionResult
+                    {
+                        CommandId = command.Id,
+                        CommandText = command.Text,
+                        Status = ExecutionStatus.Running
+                    }, displayName);
+                },
+                ct);
+
+            var hasFailure = false;
+            for (var i = 0; i < stepResults.Count; i++)
+            {
+                var stepResult = stepResults[i];
+                if (i < commands.Count)
+                {
+                    stepResult.CommandId = commands[i].Id;
+                    stepResult.CommandText = commands[i].Text;
+                }
+
+                serverResult.Commands.Add(stepResult);
+                CommandCompleted?.Invoke(stepResult, displayName);
+
+                if (stepResult.Status == ExecutionStatus.Failed)
+                    hasFailure = true;
+            }
+
+            serverResult.Status = stepResults.Count > 0 && !hasFailure
+                ? ExecutionStatus.Success
+                : ExecutionStatus.Failed;
+        }
+        catch (OperationCanceledException)
+        {
+            serverResult.Status = ExecutionStatus.Failed;
+            throw;
+        }
+        catch (Exception ex)
+        {
+            serverResult.Status = ExecutionStatus.Failed;
+            var failure = new CommandExecutionResult
+            {
+                CommandId = Guid.NewGuid().ToString(),
+                CommandText = "(session)",
+                Status = ExecutionStatus.Failed,
+                ErrorMessage = ex.Message,
+                StartedAt = DateTime.Now,
+                FinishedAt = DateTime.Now
+            };
+            serverResult.Commands.Add(failure);
+            CommandCompleted?.Invoke(failure, displayName);
+            OutputReceived?.Invoke($"[{displayName}] ERROR: {ex.Message}");
+        }
+
+        serverSw.Stop();
+        serverResult.Duration = serverSw.Elapsed;
+        session.Servers.Add(serverResult);
+        ServerCompleted?.Invoke(serverResult);
     }
 
     private static BatchCredential BuildCredential(ServerProfile server, AppSettings settings)

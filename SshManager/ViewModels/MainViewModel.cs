@@ -43,6 +43,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private GroupItemViewModel? _selectedGroup;
     [ObservableProperty] private string _serversListTitle = "Servers";
     [ObservableProperty] private CommandItemViewModel? _selectedCommand;
+    [ObservableProperty] private TargetItemViewModel? _selectedTarget;
     [ObservableProperty] private string _executionSummary = string.Empty;
     [ObservableProperty] private bool _hasExecutionResults;
     [ObservableProperty] private string _loadedBatchSummary = string.Empty;
@@ -488,6 +489,14 @@ public partial class MainViewModel : ObservableObject
                 });
             }
 
+            foreach (var target in profile.Targets)
+            {
+                server.Targets.Add(new TargetItemViewModel { Host = target });
+            }
+
+            if (string.IsNullOrWhiteSpace(server.Host) && server.Targets.Count > 0)
+                server.Host = server.Targets[0].Host;
+
             Servers.Add(server);
             ReorderServers();
             SelectedServer = server;
@@ -498,6 +507,7 @@ public partial class MainViewModel : ObservableObject
             DialogService.ShowInfo(
                 $"Server '{server.Name}' imported and saved.\n" +
                 $"Host: {server.Host}:{server.Port} ({server.ConnectionType})\n" +
+                $"Targets: {server.Targets.Count}\n" +
                 $"Commands: {server.Commands.Count}",
                 "Import Server");
         }
@@ -674,6 +684,48 @@ public partial class MainViewModel : ObservableObject
     {
         for (var i = 0; i < server.Commands.Count; i++)
             server.Commands[i].Order = i;
+    }
+
+    [RelayCommand]
+    private void AddTarget()
+    {
+        var server = ActiveServer;
+        if (server == null) return;
+        var target = new TargetItemViewModel { Host = string.Empty };
+        server.Targets.Add(target);
+        SelectedTarget = target;
+        MarkDirty();
+    }
+
+    [RelayCommand]
+    private void RemoveTarget()
+    {
+        var server = ActiveServer;
+        if (server == null || SelectedTarget == null) return;
+        server.Targets.Remove(SelectedTarget);
+        MarkDirty();
+    }
+
+    [RelayCommand]
+    private void MoveTargetUp()
+    {
+        var server = ActiveServer;
+        if (server == null || SelectedTarget == null) return;
+        var idx = server.Targets.IndexOf(SelectedTarget);
+        if (idx <= 0) return;
+        server.Targets.Move(idx, idx - 1);
+        MarkDirty();
+    }
+
+    [RelayCommand]
+    private void MoveTargetDown()
+    {
+        var server = ActiveServer;
+        if (server == null || SelectedTarget == null) return;
+        var idx = server.Targets.IndexOf(SelectedTarget);
+        if (idx < 0 || idx >= server.Targets.Count - 1) return;
+        server.Targets.Move(idx, idx + 1);
+        MarkDirty();
     }
 
     private void ReorderGroups()
@@ -1048,10 +1100,13 @@ public partial class MainViewModel : ObservableObject
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            AddOutput($"▶ [{result.GroupName}] {result.ServerName} — started", "Info");
+            var displayName = ServerTargetResolver.GetExecutionDisplayName(result.ServerName, result.TargetHost);
+            AddOutput($"▶ [{result.GroupName}] {displayName} — started", "Info");
             ExecutionResults.Add(new ExecutionServerViewModel
             {
                 ServerName = result.ServerName,
+                TargetHost = result.TargetHost,
+                DisplayName = displayName,
                 GroupName = result.GroupName,
                 Status = ExecutionStatus.Running,
                 IsExpanded = true
@@ -1060,11 +1115,11 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
-    private void OnCommandCompleted(CommandExecutionResult result, string serverName)
+    private void OnCommandCompleted(CommandExecutionResult result, string displayName)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            var serverVm = ExecutionResults.LastOrDefault(s => s.ServerName == serverName);
+            var serverVm = ExecutionResults.LastOrDefault(s => s.DisplayName == displayName);
             if (serverVm != null)
             {
                 serverVm.Commands.Add(new ExecutionCommandViewModel
@@ -1079,7 +1134,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             var icon = result.Status == ExecutionStatus.Success ? "✓" : "✗";
-            AddOutput($"{icon} [{serverName}] {result.CommandText} ({result.Duration.TotalSeconds:F2}s)",
+            AddOutput($"{icon} [{displayName}] {result.CommandText} ({result.Duration.TotalSeconds:F2}s)",
                 result.Status == ExecutionStatus.Success ? "Success" : "Error");
 
             if (!string.IsNullOrEmpty(result.ErrorMessage))
@@ -1093,7 +1148,9 @@ public partial class MainViewModel : ObservableObject
         {
             foreach (var serverResult in session.Servers)
             {
-                var vm = ExecutionResults.FirstOrDefault(s => s.ServerName == serverResult.ServerName);
+                var displayName = ServerTargetResolver.GetExecutionDisplayName(
+                    serverResult.ServerName, serverResult.TargetHost);
+                var vm = ExecutionResults.FirstOrDefault(s => s.DisplayName == displayName);
                 if (vm != null)
                 {
                     vm.Status = serverResult.Status;

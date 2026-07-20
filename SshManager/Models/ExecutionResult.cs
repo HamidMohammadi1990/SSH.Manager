@@ -17,6 +17,7 @@ public class ServerExecutionResult
     public string ServerId { get; set; } = string.Empty;
     public string ServerName { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
+    public string TargetHost { get; set; } = string.Empty;
     public ExecutionStatus Status { get; set; }
     public TimeSpan Duration { get; set; }
     public List<CommandExecutionResult> Commands { get; set; } = new();

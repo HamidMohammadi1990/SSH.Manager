@@ -36,6 +36,7 @@ public partial class ServerItemViewModel : ObservableObject
     }
 
     public ObservableCollection<CommandItemViewModel> Commands { get; } = new();
+    public ObservableCollection<TargetItemViewModel> Targets { get; } = new();
 
     public ServerProfile ToModel(string? encryptedPassword = null)
     {
@@ -54,6 +55,11 @@ public partial class ServerItemViewModel : ObservableObject
             CustomUsername = CustomUsername,
             CustomPasswordEncrypted = encryptedPassword,
             PrivateKeyPath = PrivateKeyPath,
+            Targets = Targets
+                .Select(t => t.Host.Trim())
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             Commands = Commands.Select((c, i) => c.ToModel(i)).ToList()
         };
     }
@@ -80,8 +86,16 @@ public partial class ServerItemViewModel : ObservableObject
         foreach (var cmd in model.Commands.OrderBy(c => c.Order))
             vm.Commands.Add(CommandItemViewModel.FromModel(cmd));
 
+        foreach (var target in model.Targets)
+            vm.Targets.Add(new TargetItemViewModel { Host = target });
+
         return vm;
     }
+}
+
+public partial class TargetItemViewModel : ObservableObject
+{
+    [ObservableProperty] private string _host = string.Empty;
 }
 
 public partial class CommandItemViewModel : ObservableObject
@@ -131,6 +145,8 @@ public partial class OutputLineViewModel : ObservableObject
 public partial class ExecutionServerViewModel : ObservableObject
 {
     [ObservableProperty] private string _serverName = string.Empty;
+    [ObservableProperty] private string _targetHost = string.Empty;
+    [ObservableProperty] private string _displayName = string.Empty;
     [ObservableProperty] private string _groupName = string.Empty;
     [ObservableProperty] private ExecutionStatus _status = ExecutionStatus.Pending;
     [ObservableProperty] private TimeSpan _duration;

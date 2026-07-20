@@ -301,7 +301,7 @@
                                                         <Ellipse Width="8" Height="8" VerticalAlignment="Center"
                                                                  Fill="{Binding Status, Converter={StaticResource ExecStatusBrush}}"/>
                                                         <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                                            <TextBlock Text="{Binding ServerName}" FontWeight="SemiBold" FontSize="12"/>
+                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12"/>
                                                             <TextBlock Text="{Binding GroupName}" FontSize="10"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                                                         </StackPanel>
