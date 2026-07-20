@@ -1,6 +1,12 @@
 # SSH Manager batch job example
 # Multiple @steps blocks are merged in order.
 
+@server
+ip=192.168.14.1
+port=22
+type=t
+description=توضیحات
+
 @credential
 user.name=admin
 user.password=your-login-password
