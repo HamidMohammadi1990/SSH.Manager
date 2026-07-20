@@ -59,7 +59,6 @@
                     <TextBlock Text="Type" Style="{DynamicResource FieldLabel}"/>
                     <ComboBox ItemsSource="{Binding DataContext.ConnectionTypes, RelativeSource={RelativeSource AncestorType=Window}}"
                               SelectedItem="{Binding ConnectionType}" Style="{DynamicResource FormComboBox}"
-                              Height="40" MinHeight="40"
                               SelectionChanged="ServerField_Changed">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
@@ -74,6 +73,7 @@
                 <TextBlock Text="Description" Style="{DynamicResource FieldLabel}"/>
                 <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource FormTextBox}"
                          TextWrapping="Wrap" AcceptsReturn="True" MinHeight="56" MaxHeight="80"
+                         VerticalContentAlignment="Top"
                          VerticalScrollBarVisibility="Auto"
                          TextChanged="ServerField_Changed"/>
                 <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,6,0,0">
