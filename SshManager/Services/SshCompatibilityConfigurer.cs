@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Renci.SshNet;
 
 namespace SshManager.Services;
@@ -31,7 +32,8 @@ public static class SshCompatibilityConfigurer
         "ecdsa-sha2-nistp256",
         "ecdsa-sha2-nistp384",
         "ecdsa-sha2-nistp521",
-        "ssh-ed25519"
+        "ssh-ed25519",
+        "ssh-dss"
     };
 
     private static readonly string[] PreferredEncryptions =
@@ -55,15 +57,15 @@ public static class SshCompatibilityConfigurer
         "hmac-sha2-512-etm@openssh.com"
     };
 
+    private static readonly string[] PreferredCompression = { "none" };
+
     public static void ConfigureConnection(ConnectionInfo connectionInfo)
     {
-        Prioritize(connectionInfo.KeyExchangeAlgorithms, PreferredKeyExchange);
-        Prioritize(connectionInfo.HostKeyAlgorithms, PreferredHostKeys);
-        Prioritize(connectionInfo.Encryptions, PreferredEncryptions);
-        Prioritize(connectionInfo.HmacAlgorithms, PreferredHmac);
-
-        if (connectionInfo.CompressionAlgorithms.ContainsKey("none"))
-            connectionInfo.CompressionAlgorithms.SetPosition("none", 0);
+        PrioritizeDictionary(connectionInfo.KeyExchangeAlgorithms, PreferredKeyExchange);
+        PrioritizeDictionary(connectionInfo.HostKeyAlgorithms, PreferredHostKeys);
+        PrioritizeDictionary(connectionInfo.Encryptions, PreferredEncryptions);
+        PrioritizeDictionary(connectionInfo.HmacAlgorithms, PreferredHmac);
+        PrioritizeDictionary(connectionInfo.CompressionAlgorithms, PreferredCompression);
     }
 
     public static void ConfigureClient(SshClient client)
@@ -71,15 +73,37 @@ public static class SshCompatibilityConfigurer
         client.HostKeyReceived += (_, e) => e.CanTrust = true;
     }
 
-    private static void Prioritize<T>(IOrderedDictionary<string, T> algorithms, IReadOnlyList<string> preferredOrder)
+  /// <summary>
+  /// Reorders dictionary entries so preferred algorithms are negotiated first.
+  /// Works with SSH.NET 2024.2 where collections are IDictionary, not IOrderedDictionary.
+  /// </summary>
+    private static void PrioritizeDictionary<T>(
+        IDictionary<string, T> algorithms,
+        IReadOnlyList<string> preferredOrder)
     {
-        var position = 0;
+        if (algorithms.Count == 0 || preferredOrder.Count == 0)
+            return;
+
+        var snapshot = new List<KeyValuePair<string, T>>(algorithms);
+        algorithms.Clear();
+
+        var added = new HashSet<string>(StringComparer.Ordinal);
         foreach (var name in preferredOrder)
         {
-            if (!algorithms.ContainsKey(name))
+            var match = snapshot.Find(kvp => string.Equals(kvp.Key, name, StringComparison.Ordinal));
+            if (match.Key is null)
                 continue;
 
-            algorithms.SetPosition(name, position++);
+            algorithms[match.Key] = match.Value;
+            added.Add(match.Key);
+        }
+
+        foreach (var kvp in snapshot)
+        {
+            if (added.Contains(kvp.Key))
+                continue;
+
+            algorithms[kvp.Key] = kvp.Value;
         }
     }
 }
