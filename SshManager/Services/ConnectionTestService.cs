@@ -78,13 +78,31 @@ public class ConnectionTestService
     public static SshClient CreateSshClient(
         ServerProfile server, string username, string password, string? keyPath, int timeoutSeconds)
     {
-        var connectionInfo = !string.IsNullOrWhiteSpace(keyPath) && File.Exists(keyPath)
-            ? new ConnectionInfo(server.Host, server.Port, username,
-                new PrivateKeyAuthenticationMethod(username, new PrivateKeyFile(keyPath)))
-            : new ConnectionInfo(server.Host, server.Port, username,
-                new PasswordAuthenticationMethod(username, password));
+        ConnectionInfo connectionInfo;
+
+        if (!string.IsNullOrWhiteSpace(keyPath) && File.Exists(keyPath))
+        {
+            connectionInfo = new ConnectionInfo(server.Host, server.Port, username,
+                new PrivateKeyAuthenticationMethod(username, new PrivateKeyFile(keyPath)));
+        }
+        else
+        {
+            var passwordAuth = new PasswordAuthenticationMethod(username, password);
+            var keyboardAuth = new KeyboardInteractiveAuthenticationMethod(username);
+            keyboardAuth.AuthenticationPrompt += (_, e) =>
+            {
+                foreach (var prompt in e.Prompts)
+                    prompt.Response = password;
+            };
+
+            connectionInfo = new ConnectionInfo(server.Host, server.Port, username, passwordAuth, keyboardAuth);
+        }
 
         connectionInfo.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-        return new SshClient(connectionInfo);
+        SshCompatibilityConfigurer.ConfigureConnection(connectionInfo);
+
+        var client = new SshClient(connectionInfo);
+        SshCompatibilityConfigurer.ConfigureClient(client);
+        return client;
     }
 }

@@ -69,16 +69,30 @@ public class InteractiveSessionExecutor
 
             try
             {
-                var payload = ResolveStepPayload(step, credential);
-                var bytes = Encoding.ASCII.GetBytes(payload);
-                await stream.WriteAsync(bytes, ct);
-                await Task.Delay(sendPauseMs, ct);
+                var subSteps = InteractiveStepExpander.Expand(step);
+                if (subSteps.Count == 0)
+                {
+                    result.Status = ExecutionStatus.Skipped;
+                    result.Output = string.Empty;
+                }
+                else
+                {
+                    var stepOutput = new StringBuilder();
+                    foreach (var subStep in subSteps)
+                    {
+                        ct.ThrowIfCancellationRequested();
 
-                var stepOutput = new StringBuilder();
-                await ReadTelnetAsync(stream, buffer, stepOutput, outputProgress, responseIdleMs, maxReadMs, ct);
+                        var payload = ResolveStepPayload(subStep, credential);
+                        var bytes = Encoding.ASCII.GetBytes(payload);
+                        await stream.WriteAsync(bytes, ct);
+                        await Task.Delay(sendPauseMs, ct);
 
-                result.Output = stepOutput.ToString().TrimEnd();
-                result.Status = ExecutionStatus.Success;
+                        await ReadTelnetAsync(stream, buffer, stepOutput, outputProgress, responseIdleMs, maxReadMs, ct);
+                    }
+
+                    result.Output = stepOutput.ToString().TrimEnd();
+                    result.Status = ExecutionStatus.Success;
+                }
             }
             catch (OperationCanceledException)
             {
@@ -144,14 +158,30 @@ public class InteractiveSessionExecutor
 
                 try
                 {
-                    var payload = ResolveStepPayload(step, credential);
-                    shell.Write(payload);
-                    shell.Flush();
-                    Thread.Sleep(sendPauseMs);
+                    var subSteps = InteractiveStepExpander.Expand(step);
+                    if (subSteps.Count == 0)
+                    {
+                        result.Status = ExecutionStatus.Skipped;
+                        result.Output = string.Empty;
+                    }
+                    else
+                    {
+                        var stepOutput = new StringBuilder();
+                        foreach (var subStep in subSteps)
+                        {
+                            ct.ThrowIfCancellationRequested();
 
-                    var output = ReadShellOutput(shell, outputProgress, responseIdleMs, maxReadMs);
-                    result.Output = output.TrimEnd();
-                    result.Status = ExecutionStatus.Success;
+                            var payload = ResolveStepPayload(subStep, credential);
+                            shell.Write(payload);
+                            shell.Flush();
+                            Thread.Sleep(sendPauseMs);
+
+                            stepOutput.Append(ReadShellOutput(shell, outputProgress, responseIdleMs, maxReadMs));
+                        }
+
+                        result.Output = stepOutput.ToString().TrimEnd();
+                        result.Status = ExecutionStatus.Success;
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -197,17 +227,9 @@ public class InteractiveSessionExecutor
         {
             BatchStepType.Enter => "\r\n",
             BatchStepType.Password => credential.PasswordForStep + "\r\n",
-            _ => NormalizeMultilinePayload(step.Text)
+            BatchStepType.Command => step.Text + "\r\n",
+            _ => "\r\n"
         };
-    }
-
-    private static string NormalizeMultilinePayload(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return "\r\n";
-
-        var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-        return string.Join("\r\n", lines) + "\r\n";
     }
 
     private static int ResolveResponseIdleMs(int stepDelayMs) =>
