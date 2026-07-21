@@ -78,7 +78,7 @@ public static class InteractiveSessionReadiness
                 return true;
 
             if (trimmed.Contains('[', StringComparison.Ordinal) &&
-                trimmed.EndsWith(':', StringComparison.Ordinal))
+                trimmed.EndsWith(':'))
                 return true;
         }
 
