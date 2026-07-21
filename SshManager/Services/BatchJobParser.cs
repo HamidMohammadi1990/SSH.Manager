@@ -16,6 +16,7 @@ public static class BatchJobParser
         var job = new BatchJob { SourceFile = sourceFile };
         var lines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
         string? section = null;
+        var currentStepLines = new List<string>();
 
         foreach (var rawLine in lines)
         {
@@ -28,6 +29,9 @@ public static class BatchJobParser
                 var sectionName = line[1..].Trim();
                 if (KnownSections.Contains(sectionName))
                 {
+                    if (string.Equals(section, "steps", StringComparison.OrdinalIgnoreCase))
+                        FinalizeStepBlock(job, currentStepLines);
+
                     section = sectionName.ToLowerInvariant();
                     continue;
                 }
@@ -47,13 +51,16 @@ public static class BatchJobParser
                     ParseTargetLine(line, job.Targets);
                     break;
                 case "steps":
-                    job.Steps.Add(ParseStepLine(line));
+                    currentStepLines.Add(line);
                     break;
                 default:
                     throw new FormatException(
                         "Content found outside a section. Start with @credential, @targets, or @steps.");
             }
         }
+
+        if (string.Equals(section, "steps", StringComparison.OrdinalIgnoreCase))
+            FinalizeStepBlock(job, currentStepLines);
 
         Validate(job);
         return job;
@@ -63,6 +70,19 @@ public static class BatchJobParser
     {
         var content = File.ReadAllText(filePath, Encoding.UTF8);
         return Parse(content, filePath);
+    }
+
+    private static void FinalizeStepBlock(BatchJob job, List<string> currentStepLines)
+    {
+        if (currentStepLines.Count == 0)
+            return;
+
+        job.Steps.Add(new BatchStep
+        {
+            Type = BatchStepType.Command,
+            Text = string.Join(Environment.NewLine, currentStepLines)
+        });
+        currentStepLines.Clear();
     }
 
     private static void ParseCredentialLine(string line, BatchCredential credential)
@@ -143,21 +163,6 @@ public static class BatchJobParser
         targets.Add(host);
     }
 
-    private static BatchStep ParseStepLine(string line)
-    {
-        var token = line.Trim();
-        if (token.Length == 0)
-            throw new FormatException("Empty step line is not allowed. Use '<enter>' for a blank line.");
-
-        if (token.Equals("<enter>", StringComparison.OrdinalIgnoreCase))
-            return new BatchStep { Type = BatchStepType.Enter };
-
-        if (token.Equals("<password>", StringComparison.OrdinalIgnoreCase))
-            return new BatchStep { Type = BatchStepType.Password };
-
-        return new BatchStep { Type = BatchStepType.Command, Text = token };
-    }
-
     private static void Validate(BatchJob job)
     {
         if (job.Targets.Count == 0)
@@ -166,8 +171,13 @@ public static class BatchJobParser
         if (job.Steps.Count == 0)
             throw new FormatException("No steps defined. Add at least one step under @steps.");
 
-        if (job.Steps.Any(s => s.Type == BatchStepType.Password) &&
-            string.IsNullOrEmpty(job.Credential.PasswordForStep))
+        var needsPassword = job.Steps.Any(StepUsesPasswordToken);
+        if (needsPassword && string.IsNullOrEmpty(job.Credential.PasswordForStep))
             throw new FormatException("<password> step requires user.password or enable.password in @credential.");
     }
+
+    private static bool StepUsesPasswordToken(BatchStep step) =>
+        step.Type == BatchStepType.Password ||
+        (step.Type == BatchStepType.Command &&
+         step.Text.Contains("<password>", StringComparison.OrdinalIgnoreCase));
 }

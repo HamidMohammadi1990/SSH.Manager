@@ -43,6 +43,29 @@ public static class InteractiveSessionReadiness
         return IsLoginPrompt(tail);
     }
 
+    public static bool ShouldBreakReadAfterBurst(
+        string output,
+        double idleMs,
+        int baseIdleMs,
+        bool receivedData)
+    {
+        if (!receivedData)
+            return false;
+
+        if (idleMs < MinQuietMs)
+            return false;
+
+        var tail = GetTail(output, 2048);
+
+        if (HasInteractiveInputPrompt(tail))
+            return false;
+
+        if (HasExecPrompt(tail))
+            return idleMs >= ExecPromptSettleMs;
+
+        return idleMs >= baseIdleMs;
+    }
+
     public static bool ShouldBreakReadAfterSend(
         string output,
         BatchStep sentStep,
