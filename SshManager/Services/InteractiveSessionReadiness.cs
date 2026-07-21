@@ -9,6 +9,24 @@ public static class InteractiveSessionReadiness
     private const int ExecPromptSettleMs = 180;
     private const int MinQuietMs = 40;
 
+    public static bool AwaitsInteractiveInput(BatchStep step) =>
+        step.Type == BatchStepType.Command && step.Text.TrimEnd().EndsWith(':');
+
+    public static bool IsReadyForStep(string output, BatchStep nextStep, BatchStep? lastSentStep)
+    {
+        var tail = GetTail(output, 1024);
+
+        return nextStep.Type switch
+        {
+            BatchStepType.Enter => HasInteractiveInputPrompt(tail),
+            BatchStepType.Password => IsPasswordPrompt(tail) || HasExecPrompt(tail),
+            BatchStepType.Command when lastSentStep != null && AwaitsInteractiveInput(lastSentStep) =>
+                HasInteractiveInputPrompt(tail),
+            BatchStepType.Command => IsReadyToSend(tail),
+            _ => IsReadyToSend(tail)
+        };
+    }
+
     public static bool IsReadyToSend(string output)
     {
         var tail = GetTail(output, 1024);
@@ -25,9 +43,9 @@ public static class InteractiveSessionReadiness
         return IsLoginPrompt(tail);
     }
 
-    public static bool ShouldBreakRead(
+    public static bool ShouldBreakReadAfterSend(
         string output,
-        BatchStepType sentStepType,
+        BatchStep sentStep,
         double idleMs,
         int baseIdleMs,
         bool receivedData)
@@ -40,10 +58,13 @@ public static class InteractiveSessionReadiness
 
         var tail = GetTail(output, 1024);
 
+        if (AwaitsInteractiveInput(sentStep))
+            return HasInteractiveInputPrompt(tail) && idleMs >= InputPromptSettleMs;
+
         if (HasInteractiveInputPrompt(tail))
             return idleMs >= InputPromptSettleMs;
 
-        if (sentStepType == BatchStepType.Password)
+        if (sentStep.Type == BatchStepType.Password)
         {
             if (IsPasswordPrompt(tail) && !HasExecPrompt(tail))
                 return idleMs >= baseIdleMs;
@@ -68,7 +89,7 @@ public static class InteractiveSessionReadiness
     /// </summary>
     public static bool HasInteractiveInputPrompt(string text)
     {
-        foreach (var line in GetLastNonEmptyLines(text, 3))
+        foreach (var line in GetLastNonEmptyLines(text, 4))
         {
             var trimmed = line.TrimEnd('\r', '\n', ' ', '\t', '\0');
             if (trimmed.Length == 0)
@@ -86,8 +107,7 @@ public static class InteractiveSessionReadiness
     }
 
     /// <summary>
-    /// Exec/shell prompt only when # or > is the last character on the line
-    /// (not command echo like "hostname#copy running-config tftp:").
+    /// Exec/shell prompt only when # or > is the last character on the line.
     /// </summary>
     public static bool HasExecPrompt(string text)
     {
@@ -118,7 +138,7 @@ public static class InteractiveSessionReadiness
                tail.Contains("user name:", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static void AppendToSessionTail(StringBuilder sessionTail, string chunk, int maxChars = 2048)
+    public static void AppendToSessionTail(StringBuilder sessionTail, string chunk, int maxChars = 4096)
     {
         if (string.IsNullOrEmpty(chunk))
             return;
