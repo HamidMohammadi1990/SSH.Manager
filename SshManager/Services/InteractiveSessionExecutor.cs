@@ -305,12 +305,9 @@ public class InteractiveSessionExecutor
       if (lastDataAt.HasValue)
       {
         var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
-        if (InteractiveSessionReadiness.ShouldBreakRead(output.ToString(), sentStepType, idleMs, idleTimeoutMs))
+        if (InteractiveSessionReadiness.ShouldBreakRead(
+              output.ToString(), sentStepType, idleMs, idleTimeoutMs, receivedData: true))
           break;
-      }
-      else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
-      {
-        break;
       }
 
       await Task.Delay(PollIntervalMs, ct);
@@ -347,12 +344,9 @@ public class InteractiveSessionExecutor
       if (lastDataAt.HasValue)
       {
         var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
-        if (InteractiveSessionReadiness.ShouldBreakRead(output.ToString(), sentStepType, idleMs, idleTimeoutMs))
+        if (InteractiveSessionReadiness.ShouldBreakRead(
+              output.ToString(), sentStepType, idleMs, idleTimeoutMs, receivedData: true))
           break;
-      }
-      else if ((DateTime.UtcNow - startedAt).TotalMilliseconds >= idleTimeoutMs)
-      {
-        break;
       }
 
       Thread.Sleep(PollIntervalMs);
