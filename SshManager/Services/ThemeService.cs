@@ -20,6 +20,20 @@ public static class ThemeService
         "SuccessBrush", "ErrorBrush", "WarningBrush"
     ];
 
+    private static readonly (ResourceKey Key, string ColorKey)[] SystemBrushKeys =
+    [
+        (SystemColors.MenuBrushKey, "BgMedium"),
+        (SystemColors.MenuTextBrushKey, "TextPrimary"),
+        (SystemColors.MenuBarBrushKey, "BgMedium"),
+        (SystemColors.ControlBrushKey, "BgMedium"),
+        (SystemColors.ControlTextBrushKey, "TextPrimary"),
+        (SystemColors.HighlightBrushKey, "BgLight"),
+        (SystemColors.HighlightTextBrushKey, "TextPrimary"),
+        (SystemColors.WindowBrushKey, "BgCard"),
+        (SystemColors.WindowTextBrushKey, "TextPrimary"),
+        (SystemColors.ControlDarkBrushKey, "Border")
+    ];
+
     private static readonly IReadOnlyDictionary<string, Color> DarkPalette = new Dictionary<string, Color>
     {
         ["BgDark"] = ColorFromHex("#1E1E2E"),
@@ -61,49 +75,30 @@ public static class ThemeService
 
         var palette = theme == AppTheme.Light ? LightPalette : DarkPalette;
         var colorDictionary = FindColorDictionary();
+        if (colorDictionary == null)
+            return;
 
-        if (colorDictionary != null)
-            ApplyPalette(colorDictionary, palette);
-
-        foreach (var dictionary in Application.Current.Resources.MergedDictionaries)
-        {
-            if (ReferenceEquals(dictionary, colorDictionary))
-                continue;
-
-            ApplyPalette(dictionary, palette, brushesOnly: true);
-        }
-
+        ApplyPalette(colorDictionary, palette);
         Current = theme;
     }
 
-    private static void ApplyPalette(ResourceDictionary resources, IReadOnlyDictionary<string, Color> palette, bool brushesOnly = false)
+    private static void ApplyPalette(ResourceDictionary resources, IReadOnlyDictionary<string, Color> palette)
     {
-        if (!brushesOnly)
+        foreach (var key in ColorKeys)
         {
-            foreach (var key in ColorKeys)
-            {
-                if (palette.TryGetValue(key, out var color))
-                    resources[key] = color;
-            }
+            if (palette.TryGetValue(key, out var color))
+                resources[key] = color;
         }
 
         foreach (var brushKey in BrushKeys)
         {
             var colorKey = brushKey.Replace("Brush", string.Empty, StringComparison.Ordinal);
-            if (resources[brushKey] is SolidColorBrush brush && palette.TryGetValue(colorKey, out var color))
-                brush.Color = color;
+            if (palette.TryGetValue(colorKey, out var color))
+                resources[brushKey] = CreateBrush(color);
         }
 
-        UpdateSystemBrush(resources, SystemColors.MenuBrushKey, palette["BgMedium"]);
-        UpdateSystemBrush(resources, SystemColors.MenuTextBrushKey, palette["TextPrimary"]);
-        UpdateSystemBrush(resources, SystemColors.MenuBarBrushKey, palette["BgMedium"]);
-        UpdateSystemBrush(resources, SystemColors.ControlBrushKey, palette["BgMedium"]);
-        UpdateSystemBrush(resources, SystemColors.ControlTextBrushKey, palette["TextPrimary"]);
-        UpdateSystemBrush(resources, SystemColors.HighlightBrushKey, palette["BgLight"]);
-        UpdateSystemBrush(resources, SystemColors.HighlightTextBrushKey, palette["TextPrimary"]);
-        UpdateSystemBrush(resources, SystemColors.WindowBrushKey, palette["BgCard"]);
-        UpdateSystemBrush(resources, SystemColors.WindowTextBrushKey, palette["TextPrimary"]);
-        UpdateSystemBrush(resources, SystemColors.ControlDarkBrushKey, palette["Border"]);
+        foreach (var (key, colorKey) in SystemBrushKeys)
+            resources[key] = CreateBrush(palette[colorKey]);
     }
 
     private static ResourceDictionary? FindColorDictionary()
@@ -117,11 +112,7 @@ public static class ThemeService
         return null;
     }
 
-    private static void UpdateSystemBrush(ResourceDictionary resources, ResourceKey key, Color color)
-    {
-        if (resources[key] is SolidColorBrush brush)
-            brush.Color = color;
-    }
+    private static SolidColorBrush CreateBrush(Color color) => new(color);
 
     private static Color ColorFromHex(string hex) =>
         (Color)ColorConverter.ConvertFromString(hex)!;
