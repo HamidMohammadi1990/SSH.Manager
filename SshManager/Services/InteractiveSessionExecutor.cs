@@ -230,7 +230,7 @@ public class InteractiveSessionExecutor
             await WaitUntilReadyTelnetAsync(
                 stream, buffer, sessionTail, subStep, previous, progress, responseIdleMs, maxReadMs, ct);
 
-            var payload = InteractiveStepPayloadBuilder.ResolvePart(subStep, credential);
+            var payload = InteractiveStepPayloadBuilder.ResolvePart(subStep, credential, ConnectionType.Telnet);
             await stream.WriteAsync(Encoding.ASCII.GetBytes(payload), ct);
             await Task.Delay(SendBufferMs, ct);
 
@@ -267,7 +267,7 @@ public class InteractiveSessionExecutor
             WaitUntilReadyShell(
                 shell, sessionTail, subStep, previous, progress, responseIdleMs, maxReadMs);
 
-            var payload = InteractiveStepPayloadBuilder.ResolvePart(subStep, credential);
+            var payload = InteractiveStepPayloadBuilder.ResolvePart(subStep, credential, ConnectionType.Ssh);
             shell.Write(payload);
             shell.Flush();
             Thread.Sleep(SshPostSendDelayMs);
@@ -406,15 +406,19 @@ public class InteractiveSessionExecutor
 
         while (DateTime.UtcNow < deadline)
         {
-            var text = shell.Read();
-            if (!string.IsNullOrEmpty(text))
+            var readAny = false;
+            string text;
+            while (!string.IsNullOrEmpty(text = shell.Read()))
             {
+                readAny = true;
                 output.Append(text);
                 progress?.Report(text);
                 InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
                 lastDataAt = DateTime.UtcNow;
-                continue;
             }
+
+            if (readAny)
+                continue;
 
             if (lastDataAt.HasValue)
             {
@@ -480,15 +484,19 @@ public class InteractiveSessionExecutor
 
         while (DateTime.UtcNow < deadline)
         {
-            var text = shell.Read();
-            if (!string.IsNullOrEmpty(text))
+            var readAny = false;
+            string text;
+            while (!string.IsNullOrEmpty(text = shell.Read()))
             {
+                readAny = true;
                 buffer.Append(text);
                 progress?.Report(text);
                 InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
                 lastDataAt = DateTime.UtcNow;
-                continue;
             }
+
+            if (readAny)
+                continue;
 
             if (lastDataAt.HasValue &&
                 (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds >= idleTimeoutMs)

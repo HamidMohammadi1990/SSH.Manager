@@ -19,17 +19,36 @@ public static class InteractiveSessionReadiness
 
     public static bool IsReadyForStep(string output, BatchStep nextStep, BatchStep? lastSentStep)
     {
-        var tail = GetTail(output, 1024);
+        var tail = GetTail(output, 2048);
 
         return nextStep.Type switch
         {
-            BatchStepType.Enter => HasInteractiveInputPrompt(tail),
+            BatchStepType.Enter => HasFilenamePrompt(tail) || HasInteractiveInputPrompt(tail),
             BatchStepType.Password => IsPasswordPrompt(tail) || HasExecPrompt(tail),
             BatchStepType.Command when lastSentStep != null && AwaitsInteractiveInput(lastSentStep) =>
-                HasInteractiveInputPrompt(tail),
+                HasHostAddressPrompt(tail),
             BatchStepType.Command => IsReadyToSend(tail),
             _ => IsReadyToSend(tail)
         };
+    }
+
+    public static bool HasHostAddressPrompt(string text)
+    {
+        if (HasInteractiveInputPrompt(text) &&
+            text.Contains("remote host", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return text.Contains("[]?", StringComparison.Ordinal) &&
+               text.Contains("host", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool HasFilenamePrompt(string text)
+    {
+        if (!HasInteractiveInputPrompt(text))
+            return false;
+
+        return text.Contains("filename", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("Destination", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsReadyToSend(string output)
@@ -87,11 +106,14 @@ public static class InteractiveSessionReadiness
         var tail = GetTail(output, 1024);
 
         if (AwaitsInteractiveInput(sentStep))
-            return HasInteractiveInputPrompt(tail) && idleMs >= InputPromptSettleMs;
+            return HasHostAddressPrompt(tail) && idleMs >= InputPromptSettleMs;
 
         if (sentStep.Type == BatchStepType.Enter)
             return idleMs >= InputPromptSettleMs &&
                    (HasExecPrompt(tail) || !HasInteractiveInputPrompt(tail));
+
+        if (!AwaitsInteractiveInput(sentStep) && sentStep.Type == BatchStepType.Command && HasFilenamePrompt(tail))
+            return idleMs >= InputPromptSettleMs;
 
         if (HasInteractiveInputPrompt(tail))
             return idleMs >= InputPromptSettleMs;
