@@ -5,9 +5,14 @@ namespace SshManager.Services;
 
 public static class InteractiveSessionReadiness
 {
-    private const int InputPromptSettleMs = 120;
-    private const int ExecPromptSettleMs = 180;
-    private const int MinQuietMs = 40;
+    private const int InputPromptSettleMs = 200;
+    private const int ExecPromptSettleMs = 250;
+    private const int MinQuietMs = 50;
+
+    public static bool ContainsDeviceError(string output) =>
+        output.Contains("%Error", StringComparison.OrdinalIgnoreCase) ||
+        output.Contains("Bad address", StringComparison.OrdinalIgnoreCase) ||
+        output.Contains("not specified", StringComparison.OrdinalIgnoreCase);
 
     public static bool AwaitsInteractiveInput(BatchStep step) =>
         step.Type == BatchStepType.Command && step.Text.TrimEnd().EndsWith(':');
@@ -84,6 +89,10 @@ public static class InteractiveSessionReadiness
         if (AwaitsInteractiveInput(sentStep))
             return HasInteractiveInputPrompt(tail) && idleMs >= InputPromptSettleMs;
 
+        if (sentStep.Type == BatchStepType.Enter)
+            return idleMs >= InputPromptSettleMs &&
+                   (HasExecPrompt(tail) || !HasInteractiveInputPrompt(tail));
+
         if (HasInteractiveInputPrompt(tail))
             return idleMs >= InputPromptSettleMs;
 
@@ -102,7 +111,7 @@ public static class InteractiveSessionReadiness
             return idleMs >= baseIdleMs;
 
         if (HasExecPrompt(tail))
-            return idleMs >= baseIdleMs;
+            return idleMs >= ExecPromptSettleMs;
 
         return idleMs >= baseIdleMs;
     }

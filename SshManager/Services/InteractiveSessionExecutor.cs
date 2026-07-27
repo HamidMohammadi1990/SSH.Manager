@@ -7,8 +7,9 @@ namespace SshManager.Services;
 
 public class InteractiveSessionExecutor
 {
-    private const int PollIntervalMs = 20;
-    private const int SendBufferMs = 15;
+    private const int PollIntervalMs = 25;
+    private const int SendBufferMs = 30;
+    private const int SshPostSendDelayMs = 50;
 
     public async Task<List<CommandExecutionResult>> ExecuteStepsAsync(
         ServerProfile server,
@@ -40,7 +41,7 @@ public class InteractiveSessionExecutor
         int stepDelayMs,
         int connectionTimeoutSeconds,
         int commandTimeoutSeconds,
-        IProgress<string>? outputProgress,
+        IProgress<string>? progress,
         Action<BatchStep>? onStepStarted,
         CancellationToken ct)
     {
@@ -56,12 +57,12 @@ public class InteractiveSessionExecutor
         var sessionTail = new StringBuilder();
         var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
         var maxReadMs = commandTimeoutSeconds * 1000;
-        BatchStep? lastSentStep = null;
+        BatchStep? lastSentSubStep = null;
 
-        await ReadTelnetBurstAsync(stream, buffer, sessionTail, outputProgress, responseIdleMs, maxReadMs, ct);
+        await DrainTelnetAsync(stream, buffer, sessionTail, progress, responseIdleMs, maxReadMs, ct);
 
         if (!string.IsNullOrWhiteSpace(credential.Username))
-            await TelnetLoginAsync(stream, buffer, credential, sessionTail, responseIdleMs, maxReadMs, outputProgress, ct);
+            await TelnetLoginAsync(stream, buffer, credential, sessionTail, responseIdleMs, maxReadMs, progress, ct);
 
         foreach (var step in steps)
         {
@@ -72,27 +73,23 @@ public class InteractiveSessionExecutor
 
             try
             {
-                var payload = InteractiveStepPayloadBuilder.Build(step, credential);
-                if (string.IsNullOrEmpty(payload))
+                var output = await ExecuteStepSequentiallyTelnetAsync(
+                    stream, buffer, sessionTail, step, credential, lastSentSubStep,
+                    progress, responseIdleMs, maxReadMs, ct);
+
+                if (string.IsNullOrEmpty(output) && InteractiveStepExpander.Expand(step).Count == 0)
                 {
                     result.Status = ExecutionStatus.Skipped;
                     result.Output = string.Empty;
                 }
                 else
                 {
-                    await WaitUntilReadyTelnetAsync(
-                        stream, buffer, sessionTail, step, lastSentStep,
-                        outputProgress, responseIdleMs, maxReadMs, ct);
-
-                    await stream.WriteAsync(Encoding.ASCII.GetBytes(payload), ct);
-                    await Task.Delay(SendBufferMs, ct);
-
-                    var stepOutput = new StringBuilder();
-                    await ReadTelnetBurstAsync(stream, buffer, stepOutput, outputProgress, responseIdleMs, maxReadMs, ct, sessionTail);
-
-                    result.Output = stepOutput.ToString().TrimEnd();
-                    result.Status = ExecutionStatus.Success;
-                    lastSentStep = step;
+                    result.Output = output.TrimEnd();
+                    result.Status = InteractiveSessionReadiness.ContainsDeviceError(result.Output)
+                        ? ExecutionStatus.Failed
+                        : ExecutionStatus.Success;
+                    if (result.Status == ExecutionStatus.Failed)
+                        result.ErrorMessage = "Device reported an error during command execution.";
                 }
             }
             catch (OperationCanceledException)
@@ -115,6 +112,8 @@ public class InteractiveSessionExecutor
 
             if (result.Status == ExecutionStatus.Failed)
                 break;
+
+            lastSentSubStep = GetLastSubStep(step);
         }
 
         return results;
@@ -127,7 +126,7 @@ public class InteractiveSessionExecutor
         int stepDelayMs,
         int connectionTimeoutSeconds,
         int commandTimeoutSeconds,
-        IProgress<string>? outputProgress,
+        IProgress<string>? progress,
         Action<BatchStep>? onStepStarted,
         CancellationToken ct)
     {
@@ -147,9 +146,9 @@ public class InteractiveSessionExecutor
             var sessionTail = new StringBuilder();
             var responseIdleMs = ResolveResponseIdleMs(stepDelayMs);
             var maxReadMs = commandTimeoutSeconds * 1000;
-            BatchStep? lastSentStep = null;
+            BatchStep? lastSentSubStep = null;
 
-            ReadShellBurst(shell, sessionTail, outputProgress, responseIdleMs, maxReadMs);
+            DrainShell(shell, sessionTail, progress, responseIdleMs, maxReadMs);
 
             foreach (var step in steps)
             {
@@ -160,28 +159,23 @@ public class InteractiveSessionExecutor
 
                 try
                 {
-                    var payload = InteractiveStepPayloadBuilder.Build(step, credential);
-                    if (string.IsNullOrEmpty(payload))
+                    var output = ExecuteStepSequentiallyShell(
+                        shell, sessionTail, step, credential, lastSentSubStep,
+                        progress, responseIdleMs, maxReadMs, ct);
+
+                    if (string.IsNullOrEmpty(output) && InteractiveStepExpander.Expand(step).Count == 0)
                     {
                         result.Status = ExecutionStatus.Skipped;
                         result.Output = string.Empty;
                     }
                     else
                     {
-                        WaitUntilReadyShell(
-                            shell, sessionTail, step, lastSentStep,
-                            outputProgress, responseIdleMs, maxReadMs);
-
-                        shell.Write(payload);
-                        shell.Flush();
-                        Thread.Sleep(SendBufferMs);
-
-                        var stepOutput = new StringBuilder();
-                        ReadShellBurst(shell, sessionTail, outputProgress, responseIdleMs, maxReadMs, stepOutput);
-
-                        result.Output = stepOutput.ToString().TrimEnd();
-                        result.Status = ExecutionStatus.Success;
-                        lastSentStep = step;
+                        result.Output = output.TrimEnd();
+                        result.Status = InteractiveSessionReadiness.ContainsDeviceError(result.Output)
+                            ? ExecutionStatus.Failed
+                            : ExecutionStatus.Success;
+                        if (result.Status == ExecutionStatus.Failed)
+                            result.ErrorMessage = "Device reported an error during command execution.";
                     }
                 }
                 catch (OperationCanceledException)
@@ -204,11 +198,94 @@ public class InteractiveSessionExecutor
 
                 if (result.Status == ExecutionStatus.Failed)
                     break;
+
+                lastSentSubStep = GetLastSubStep(step);
             }
 
             client.Disconnect();
             return results;
         }, ct);
+    }
+
+    private static async Task<string> ExecuteStepSequentiallyTelnetAsync(
+        NetworkStream stream,
+        byte[] buffer,
+        StringBuilder sessionTail,
+        BatchStep step,
+        BatchCredential credential,
+        BatchStep? lastSentSubStep,
+        IProgress<string>? progress,
+        int responseIdleMs,
+        int maxReadMs,
+        CancellationToken ct)
+    {
+        var subSteps = InteractiveStepExpander.Expand(step);
+        var output = new StringBuilder();
+        var previous = lastSentSubStep;
+
+        foreach (var subStep in subSteps)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            await WaitUntilReadyTelnetAsync(
+                stream, buffer, sessionTail, subStep, previous, progress, responseIdleMs, maxReadMs, ct);
+
+            var payload = InteractiveStepPayloadBuilder.ResolvePart(subStep, credential);
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(payload), ct);
+            await Task.Delay(SendBufferMs, ct);
+
+            var chunk = new StringBuilder();
+            await ReadAfterSendTelnetAsync(
+                stream, buffer, chunk, sessionTail, subStep, progress, responseIdleMs, maxReadMs, ct);
+            output.Append(chunk);
+
+            previous = subStep;
+        }
+
+        return output.ToString();
+    }
+
+    private static string ExecuteStepSequentiallyShell(
+        ShellStream shell,
+        StringBuilder sessionTail,
+        BatchStep step,
+        BatchCredential credential,
+        BatchStep? lastSentSubStep,
+        IProgress<string>? progress,
+        int responseIdleMs,
+        int maxReadMs,
+        CancellationToken ct)
+    {
+        var subSteps = InteractiveStepExpander.Expand(step);
+        var output = new StringBuilder();
+        var previous = lastSentSubStep;
+
+        foreach (var subStep in subSteps)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            WaitUntilReadyShell(
+                shell, sessionTail, subStep, previous, progress, responseIdleMs, maxReadMs);
+
+            var payload = InteractiveStepPayloadBuilder.ResolvePart(subStep, credential);
+            shell.Write(payload);
+            shell.Flush();
+            Thread.Sleep(SshPostSendDelayMs);
+
+            var chunk = new StringBuilder();
+            ReadAfterSendShell(shell, chunk, sessionTail, subStep, progress, responseIdleMs, maxReadMs);
+            output.Append(chunk);
+
+            previous = subStep;
+        }
+
+        return output.ToString();
+    }
+
+    private static BatchStep? GetLastSubStep(BatchStep step)
+    {
+        var subSteps = InteractiveStepExpander.Expand(step);
+        return subSteps.Count > 0 ? subSteps[^1] : null;
     }
 
     private static CommandExecutionResult CreateStepResult(BatchStep step) =>
@@ -221,59 +298,137 @@ public class InteractiveSessionExecutor
         };
 
     private static int ResolveResponseIdleMs(int stepDelayMs) =>
-        Math.Clamp(stepDelayMs, 250, 1500);
+        Math.Clamp(stepDelayMs, 300, 2000);
 
     private static async Task WaitUntilReadyTelnetAsync(
         NetworkStream stream,
         byte[] buffer,
         StringBuilder sessionTail,
-        BatchStep nextStep,
-        BatchStep? lastSentStep,
+        BatchStep nextSubStep,
+        BatchStep? lastSentSubStep,
         IProgress<string>? progress,
         int baseIdleMs,
         int maxWaitMs,
         CancellationToken ct)
     {
-        if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextStep, lastSentStep))
+        if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextSubStep, lastSentSubStep))
             return;
 
         var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
         while (DateTime.UtcNow < deadline)
         {
-            if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextStep, lastSentStep))
+            if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextSubStep, lastSentSubStep))
                 return;
 
             var remainingMs = (int)Math.Max(PollIntervalMs, (deadline - DateTime.UtcNow).TotalMilliseconds);
             var drain = new StringBuilder();
-            await ReadTelnetBurstAsync(stream, buffer, drain, progress, baseIdleMs,
-                Math.Min(500, remainingMs), ct, sessionTail);
+            await DrainTelnetAsync(stream, buffer, drain, progress, baseIdleMs,
+                Math.Min(800, remainingMs), ct, sessionTail);
         }
     }
 
     private static void WaitUntilReadyShell(
         ShellStream shell,
         StringBuilder sessionTail,
-        BatchStep nextStep,
-        BatchStep? lastSentStep,
+        BatchStep nextSubStep,
+        BatchStep? lastSentSubStep,
         IProgress<string>? progress,
         int baseIdleMs,
         int maxWaitMs)
     {
-        if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextStep, lastSentStep))
+        if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextSubStep, lastSentSubStep))
             return;
 
         var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
         while (DateTime.UtcNow < deadline)
         {
-            if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextStep, lastSentStep))
+            if (InteractiveSessionReadiness.IsReadyForStep(sessionTail.ToString(), nextSubStep, lastSentSubStep))
                 return;
 
             var remainingMs = (int)Math.Max(PollIntervalMs, (deadline - DateTime.UtcNow).TotalMilliseconds);
-            ReadShellBurst(shell, sessionTail, progress, baseIdleMs, Math.Min(500, remainingMs));
+            DrainShell(shell, sessionTail, progress, baseIdleMs, Math.Min(800, remainingMs));
         }
     }
 
-    private static async Task ReadTelnetBurstAsync(
+    private static async Task ReadAfterSendTelnetAsync(
+        NetworkStream stream,
+        byte[] buffer,
+        StringBuilder output,
+        StringBuilder sessionTail,
+        BatchStep sentSubStep,
+        IProgress<string>? progress,
+        int idleTimeoutMs,
+        int maxWaitMs,
+        CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+        DateTime? lastDataAt = null;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (stream.DataAvailable)
+            {
+                var read = await stream.ReadAsync(buffer, ct);
+                if (read == 0)
+                    break;
+
+                var text = Encoding.ASCII.GetString(buffer, 0, read);
+                output.Append(text);
+                progress?.Report(text);
+                InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
+                lastDataAt = DateTime.UtcNow;
+                continue;
+            }
+
+            if (lastDataAt.HasValue)
+            {
+                var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
+                if (InteractiveSessionReadiness.ShouldBreakReadAfterSend(
+                        sessionTail.ToString(), sentSubStep, idleMs, idleTimeoutMs, receivedData: true))
+                    break;
+            }
+
+            await Task.Delay(PollIntervalMs, ct);
+        }
+    }
+
+    private static void ReadAfterSendShell(
+        ShellStream shell,
+        StringBuilder output,
+        StringBuilder sessionTail,
+        BatchStep sentSubStep,
+        IProgress<string>? progress,
+        int idleTimeoutMs,
+        int maxWaitMs)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+        DateTime? lastDataAt = null;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            var text = shell.Read();
+            if (!string.IsNullOrEmpty(text))
+            {
+                output.Append(text);
+                progress?.Report(text);
+                InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
+                lastDataAt = DateTime.UtcNow;
+                continue;
+            }
+
+            if (lastDataAt.HasValue)
+            {
+                var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
+                if (InteractiveSessionReadiness.ShouldBreakReadAfterSend(
+                        sessionTail.ToString(), sentSubStep, idleMs, idleTimeoutMs, receivedData: true))
+                    break;
+            }
+
+            Thread.Sleep(PollIntervalMs);
+        }
+    }
+
+    private static async Task DrainTelnetAsync(
         NetworkStream stream,
         byte[] buffer,
         StringBuilder output,
@@ -283,11 +438,10 @@ public class InteractiveSessionExecutor
         CancellationToken ct,
         StringBuilder? sessionTail = null)
     {
-        var startedAt = DateTime.UtcNow;
-        var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
+        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
         DateTime? lastDataAt = null;
 
-        while (DateTime.UtcNow < overallDeadline)
+        while (DateTime.UtcNow < deadline)
         {
             if (stream.DataAvailable)
             {
@@ -300,56 +454,45 @@ public class InteractiveSessionExecutor
                 progress?.Report(text);
                 if (sessionTail != null)
                     InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
-
                 lastDataAt = DateTime.UtcNow;
                 continue;
             }
 
-            if (lastDataAt.HasValue)
-            {
-                var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
-                if (InteractiveSessionReadiness.ShouldBreakReadAfterBurst(
-                        output.ToString(), idleMs, idleTimeoutMs, receivedData: true))
-                    break;
-            }
+            if (lastDataAt.HasValue &&
+                (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds >= idleTimeoutMs)
+                break;
 
             await Task.Delay(PollIntervalMs, ct);
         }
     }
 
-    private static void ReadShellBurst(
+    private static void DrainShell(
         ShellStream shell,
         StringBuilder sessionTail,
         IProgress<string>? progress,
         int idleTimeoutMs,
         int maxWaitMs,
-        StringBuilder? stepOutput = null)
+        StringBuilder? output = null)
     {
-        var output = stepOutput ?? new StringBuilder();
-        var startedAt = DateTime.UtcNow;
-        var overallDeadline = startedAt.AddMilliseconds(maxWaitMs);
+        var buffer = output ?? new StringBuilder();
+        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
         DateTime? lastDataAt = null;
 
-        while (DateTime.UtcNow < overallDeadline)
+        while (DateTime.UtcNow < deadline)
         {
             var text = shell.Read();
             if (!string.IsNullOrEmpty(text))
             {
-                output.Append(text);
+                buffer.Append(text);
                 progress?.Report(text);
                 InteractiveSessionReadiness.AppendToSessionTail(sessionTail, text);
-
                 lastDataAt = DateTime.UtcNow;
                 continue;
             }
 
-            if (lastDataAt.HasValue)
-            {
-                var idleMs = (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds;
-                if (InteractiveSessionReadiness.ShouldBreakReadAfterBurst(
-                        output.ToString(), idleMs, idleTimeoutMs, receivedData: true))
-                    break;
-            }
+            if (lastDataAt.HasValue &&
+                (DateTime.UtcNow - lastDataAt.Value).TotalMilliseconds >= idleTimeoutMs)
+                break;
 
             Thread.Sleep(PollIntervalMs);
         }
@@ -366,17 +509,17 @@ public class InteractiveSessionExecutor
         CancellationToken ct)
     {
         var loginOutput = new StringBuilder();
-        await ReadTelnetBurstAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct, sessionTail);
+        await DrainTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct, sessionTail);
 
         await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Username + "\r\n"), ct);
         await Task.Delay(SendBufferMs, ct);
-        await ReadTelnetBurstAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct, sessionTail);
+        await DrainTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct, sessionTail);
 
         if (!string.IsNullOrEmpty(credential.Password))
         {
             await stream.WriteAsync(Encoding.ASCII.GetBytes(credential.Password + "\r\n"), ct);
             await Task.Delay(SendBufferMs, ct);
-            await ReadTelnetBurstAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct, sessionTail);
+            await DrainTelnetAsync(stream, buffer, loginOutput, progress, idleTimeoutMs, maxWaitMs, ct, sessionTail);
         }
     }
 }
