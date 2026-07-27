@@ -854,6 +854,13 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(HasLoadedBatch));
             ExecuteBatchCommand.NotifyCanExecuteChanged();
             StatusMessage = $"Batch loaded: {_loadedBatchJob.Summary}";
+
+            if (_loadedBatchJob.HadEmbeddedCredentials)
+            {
+                DialogService.ShowWarning(
+                    "This batch file contains credentials in @credential, but they were ignored for security.\n\nYou will be asked for username and password when you run the batch.",
+                    "Credentials Ignored");
+            }
         }
         catch (Exception ex)
         {
@@ -866,6 +873,27 @@ public partial class MainViewModel : ObservableObject
     {
         if (IsExecuting || _loadedBatchJob == null) return;
 
+        var credentialDialog = new BatchCredentialDialog
+        {
+            Owner = Application.Current.MainWindow,
+            Username = DefaultUsername,
+            RequiresEnablePassword = _loadedBatchJob.RequiresEnablePassword,
+            BatchSummary = LoadedBatchSummary
+        };
+
+        if (credentialDialog.ShowDialog() != true)
+        {
+            StatusMessage = "Batch execution cancelled";
+            return;
+        }
+
+        var credential = new BatchCredential
+        {
+            Username = credentialDialog.Username,
+            Password = credentialDialog.Password,
+            EnablePassword = credentialDialog.EnablePassword
+        };
+
         IsExecuting = true;
         OutputLines.Clear();
         ExecutionResults.Clear();
@@ -873,7 +901,7 @@ public partial class MainViewModel : ObservableObject
         ExecutionSummary = string.Empty;
         _executionCts = new CancellationTokenSource();
 
-        var job = PrepareBatchJobForExecution(_loadedBatchJob);
+        var job = PrepareBatchJobForExecution(_loadedBatchJob, credential);
         AddOutput($"=== Batch execution started: {job.Targets.Count} target(s), {job.Steps.Count} step(s), {job.Defaults.ConnectionType} port {job.Defaults.Port} ===", "Info");
         StatusMessage = "Running batch job...";
 
@@ -911,12 +939,12 @@ public partial class MainViewModel : ObservableObject
 
     private bool CanExecuteBatch() => _loadedBatchJob != null && !IsExecuting;
 
-    private BatchJob PrepareBatchJobForExecution(BatchJob source)
+    private BatchJob PrepareBatchJobForExecution(BatchJob source, BatchCredential credential)
     {
         return new BatchJob
         {
             SourceFile = source.SourceFile,
-            Credential = source.Credential,
+            Credential = credential,
             Targets = source.Targets,
             Steps = source.Steps,
             Defaults = new BatchDefaults

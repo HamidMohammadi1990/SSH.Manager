@@ -42,7 +42,8 @@ public static class BatchJobParser
             switch (section)
             {
                 case "credential":
-                    ParseCredentialLine(line, job.Credential);
+                    if (ContainsEmbeddedCredentialValue(line))
+                        job.HadEmbeddedCredentials = true;
                     break;
                 case "defaults":
                     ParseDefaultsLine(line, job.Defaults);
@@ -55,7 +56,7 @@ public static class BatchJobParser
                     break;
                 default:
                     throw new FormatException(
-                        "Content found outside a section. Start with @credential, @targets, or @steps.");
+                        "Content found outside a section. Start with @targets, @defaults, or @steps.");
             }
         }
 
@@ -85,33 +86,13 @@ public static class BatchJobParser
         currentStepLines.Clear();
     }
 
-    private static void ParseCredentialLine(string line, BatchCredential credential)
+    private static bool ContainsEmbeddedCredentialValue(string line)
     {
         var eq = line.IndexOf('=');
         if (eq <= 0)
-            throw new FormatException($"Invalid credential line: '{line}'");
+            return false;
 
-        var key = line[..eq].Trim().ToLowerInvariant();
-        var value = line[(eq + 1)..].Trim();
-
-        switch (key)
-        {
-            case "user.name":
-            case "username":
-            case "user":
-                credential.Username = value;
-                break;
-            case "user.password":
-            case "password":
-                credential.Password = value;
-                break;
-            case "enable.password":
-            case "enable":
-                credential.EnablePassword = value;
-                break;
-            default:
-                throw new FormatException($"Unknown credential key: '{key}'");
-        }
+        return line[(eq + 1)..].Trim().Length > 0;
     }
 
     private static void ParseDefaultsLine(string line, BatchDefaults defaults)
@@ -170,14 +151,5 @@ public static class BatchJobParser
 
         if (job.Steps.Count == 0)
             throw new FormatException("No steps defined. Add at least one step under @steps.");
-
-        var needsPassword = job.Steps.Any(StepUsesPasswordToken);
-        if (needsPassword && string.IsNullOrEmpty(job.Credential.PasswordForStep))
-            throw new FormatException("<password> step requires user.password or enable.password in @credential.");
     }
-
-    private static bool StepUsesPasswordToken(BatchStep step) =>
-        step.Type == BatchStepType.Password ||
-        (step.Type == BatchStepType.Command &&
-         step.Text.Contains("<password>", StringComparison.OrdinalIgnoreCase));
 }

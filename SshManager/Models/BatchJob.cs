@@ -7,9 +7,17 @@ public class BatchJob
     public List<string> Targets { get; set; } = new();
     public List<BatchStep> Steps { get; set; } = new();
     public string? SourceFile { get; set; }
+    public bool HadEmbeddedCredentials { get; set; }
+
+    public bool RequiresEnablePassword => Steps.Any(UsesPasswordToken);
 
     public string Summary =>
         $"{Targets.Count} target(s), {Steps.Count} step(s), {Defaults.ConnectionType} port {Defaults.Port}";
+
+    private static bool UsesPasswordToken(BatchStep step) =>
+        step.Type == BatchStepType.Password ||
+        (step.Type == BatchStepType.Command &&
+         step.Text.Contains("<password>", StringComparison.OrdinalIgnoreCase));
 }
 
 public class BatchCredential

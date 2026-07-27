@@ -1,16 +1,5 @@
 # SSH Manager batch job example
-# Multiple @steps blocks are merged in order.
-
-@server
-ip=192.168.14.1
-port=22
-type=t/s
-description=توضیحات
-
-@credential
-user.name=admin
-user.password=your-login-password
-enable.password=your-enable-password
+# Credentials are NOT stored in batch files. You will be prompted when running.
 
 @defaults
 type=telnet
