@@ -1,4 +1,5 @@
 using System.Windows;
+using SshManager.Models;
 using SshManager.Services;
 
 namespace SshManager.Views;
@@ -10,6 +11,7 @@ public partial class SettingsDialog : Window
     public int ConnectionTimeout { get; set; } = 30;
     public int CommandTimeout { get; set; } = 60;
     public int BatchStepDelay { get; set; } = 500;
+    public AppTheme Theme { get; set; } = AppTheme.Dark;
 
     public SettingsDialog()
     {
@@ -21,6 +23,7 @@ public partial class SettingsDialog : Window
             ConnectionTimeoutBox.Text = ConnectionTimeout.ToString();
             CommandTimeoutBox.Text = CommandTimeout.ToString();
             BatchStepDelayBox.Text = BatchStepDelay.ToString();
+            ThemeBox.SelectedIndex = Theme == AppTheme.Light ? 1 : 0;
         };
     }
 
@@ -72,6 +75,8 @@ public partial class SettingsDialog : Window
         ConnectionTimeout = connTimeout;
         CommandTimeout = cmdTimeout;
         BatchStepDelay = batchDelay;
+        Theme = ThemeBox.SelectedIndex == 1 ? AppTheme.Light : AppTheme.Dark;
+        ThemeService.Apply(Theme);
         DialogResult = true;
         Close();
     }

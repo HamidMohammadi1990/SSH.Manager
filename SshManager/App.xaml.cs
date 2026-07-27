@@ -14,6 +14,9 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
+        var data = new JsonDataService().Load();
+        ThemeService.Apply(data.Settings.Theme);
+
         var mainWindow = new MainWindow();
         mainWindow.Show();
     }

@@ -59,7 +59,7 @@
     </Style>
 
     <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-        <Setter Property="Foreground" Value="#F44336"/>
+        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
     </Style>
 
     <!-- TextBox -->

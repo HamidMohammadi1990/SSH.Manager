@@ -38,6 +38,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _connectionTimeoutSeconds = 30;
     [ObservableProperty] private int _commandTimeoutSeconds = 60;
     [ObservableProperty] private int _batchStepDelayMs = 500;
+    [ObservableProperty] private AppTheme _theme = AppTheme.Dark;
     [ObservableProperty] private ServerItemViewModel? _selectedServer;
     [ObservableProperty] private ServerTabViewModel? _selectedTab;
     [ObservableProperty] private GroupItemViewModel? _selectedGroup;
@@ -52,6 +53,7 @@ public partial class MainViewModel : ObservableObject
     public bool HasLoadedBatch => _loadedBatchJob != null;
     public int BatchPort => BatchConnectionType == ConnectionType.Ssh ? 22 : 23;
     public string BatchPortLabel => $"Port {BatchPort}";
+    public string ThemeToggleLabel => Theme == AppTheme.Dark ? "☀ Light" : "🌙 Dark";
 
     public bool IsBatchTelnet
     {
@@ -71,6 +73,12 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(BatchPortLabel));
         OnPropertyChanged(nameof(IsBatchTelnet));
         OnPropertyChanged(nameof(IsBatchSsh));
+    }
+
+    partial void OnThemeChanged(AppTheme value)
+    {
+        ThemeService.Apply(value);
+        OnPropertyChanged(nameof(ThemeToggleLabel));
     }
 
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
@@ -326,6 +334,7 @@ public partial class MainViewModel : ObservableObject
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
         BatchStepDelayMs = data.Settings.BatchStepDelayMs > 0 ? data.Settings.BatchStepDelayMs : 500;
+        Theme = data.Settings.Theme;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))
@@ -353,17 +362,7 @@ public partial class MainViewModel : ObservableObject
     {
         var data = new AppData
         {
-            Settings = new AppSettings
-            {
-                DefaultUsername = DefaultUsername,
-                DefaultPasswordEncrypted = string.IsNullOrEmpty(DefaultPassword)
-                    ? null
-                    : CredentialService.Encrypt(DefaultPassword),
-                ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
-                CommandTimeoutSeconds = CommandTimeoutSeconds,
-                BatchStepDelayMs = BatchStepDelayMs,
-                Theme = AppTheme.Dark
-            },
+            Settings = BuildSettings(),
             Groups = Groups.Select(g => g.ToModel()).OrderBy(g => g.Order).ToList(),
             Servers = Servers.Select(s =>
             {
@@ -945,16 +944,7 @@ public partial class MainViewModel : ObservableObject
 
         var data = new AppData
         {
-            Settings = new AppSettings
-            {
-                DefaultUsername = DefaultUsername,
-                DefaultPasswordEncrypted = string.IsNullOrEmpty(DefaultPassword)
-                    ? null : CredentialService.Encrypt(DefaultPassword),
-                ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
-                CommandTimeoutSeconds = CommandTimeoutSeconds,
-                BatchStepDelayMs = BatchStepDelayMs,
-                Theme = AppTheme.Dark
-            },
+            Settings = BuildSettings(),
             Groups = Groups.Select(g => g.ToModel()).ToList(),
             Servers = Servers.Select(s =>
             {
@@ -1027,7 +1017,8 @@ public partial class MainViewModel : ObservableObject
             DefaultPassword = DefaultPassword,
             ConnectionTimeout = ConnectionTimeoutSeconds,
             CommandTimeout = CommandTimeoutSeconds,
-            BatchStepDelay = BatchStepDelayMs
+            BatchStepDelay = BatchStepDelayMs,
+            Theme = Theme
         };
 
         if (dialog.ShowDialog() == true)
@@ -1037,8 +1028,16 @@ public partial class MainViewModel : ObservableObject
             ConnectionTimeoutSeconds = dialog.ConnectionTimeout;
             CommandTimeoutSeconds = dialog.CommandTimeout;
             BatchStepDelayMs = dialog.BatchStepDelay;
+            Theme = dialog.Theme;
             MarkDirty();
         }
+    }
+
+    [RelayCommand]
+    private void ToggleTheme()
+    {
+        Theme = Theme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+        MarkDirty();
     }
 
     public void OnServerFieldChanged() => MarkDirty();
@@ -1067,7 +1066,8 @@ public partial class MainViewModel : ObservableObject
             ? null : CredentialService.Encrypt(DefaultPassword),
         ConnectionTimeoutSeconds = ConnectionTimeoutSeconds,
         CommandTimeoutSeconds = CommandTimeoutSeconds,
-        BatchStepDelayMs = BatchStepDelayMs
+        BatchStepDelayMs = BatchStepDelayMs,
+        Theme = Theme
     };
 
     private void ApplyImportedData(AppData data)
@@ -1078,6 +1078,7 @@ public partial class MainViewModel : ObservableObject
         ConnectionTimeoutSeconds = data.Settings.ConnectionTimeoutSeconds;
         CommandTimeoutSeconds = data.Settings.CommandTimeoutSeconds;
         BatchStepDelayMs = data.Settings.BatchStepDelayMs > 0 ? data.Settings.BatchStepDelayMs : 500;
+        Theme = data.Settings.Theme;
 
         Groups.Clear();
         foreach (var g in data.Groups.OrderBy(g => g.Order))
