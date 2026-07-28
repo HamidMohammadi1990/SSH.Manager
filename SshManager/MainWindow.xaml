@@ -87,19 +87,43 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Button Content="+ Add Group" Style="{DynamicResource PrimaryButton}" Margin="0,0,4,0"
                                     Command="{Binding AddGroupCommand}"/>
-                            <Button Content="Remove" Style="{DynamicResource DangerButton}"
+                            <Button Content="Remove" Style="{DynamicResource DangerButton}" Margin="0,0,4,0"
                                     Command="{Binding RemoveGroupCommand}"/>
                         </StackPanel>
-                        <TextBlock Text="Select Group" Style="{DynamicResource FieldLabel}"/>
-                        <ComboBox ItemsSource="{Binding Groups}"
-                                  SelectedItem="{Binding SelectedGroup}"
-                                  DisplayMemberPath="Name" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <Button Content="All" Style="{DynamicResource SecondaryButton}" Padding="10,4" Margin="0,0,4,0"
+                                    Command="{Binding SelectAllGroupsCommand}"/>
+                            <Button Content="Clear" Style="{DynamicResource SecondaryButton}" Padding="10,4"
+                                    Command="{Binding ClearGroupSelectionCommand}"/>
+                        </StackPanel>
+                        <TextBlock Text="Select Groups" Style="{DynamicResource FieldLabel}"/>
+                        <TextBlock Text="Ctrl+click or Shift+click to select multiple groups."
+                                   Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10"
+                                   Margin="0,0,0,4"/>
+                        <ListBox x:Name="GroupListBox"
+                                 ItemsSource="{Binding Groups}"
+                                 DisplayMemberPath="Name"
+                                 SelectionMode="Extended"
+                                 MaxHeight="120"
+                                 Style="{DynamicResource FlatListBox}"
+                                 SelectionChanged="GroupListBox_SelectionChanged"
+                                 Margin="0,0,0,8"/>
                         <TextBlock Text="Group Name" Style="{DynamicResource FieldLabel}"/>
                         <TextBox Text="{Binding SelectedGroup.Name, UpdateSourceTrigger=PropertyChanged}"
                                  Margin="0,0,0,4" TextChanged="GroupField_Changed"
-                                 IsEnabled="{Binding SelectedGroup, Converter={StaticResource ObjectToBool}}"/>
-                        <TextBlock Text="Edit name, then click Save" Foreground="{DynamicResource TextSecondaryBrush}"
-                                   FontSize="10" Margin="0,0,0,4"/>
+                                 IsEnabled="{Binding CanEditGroupName}"/>
+                        <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10" Margin="0,0,0,4">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Select one group to rename"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CanEditGroupName}" Value="True">
+                                            <Setter Property="Text" Value="Edit name, then click Save"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
 
                     <Grid Grid.Row="2">

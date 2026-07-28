@@ -84,6 +84,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
     public ICollectionView ServersView { get; }
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
+    public ObservableCollection<GroupItemViewModel> SelectedGroups { get; } = new();
     public ObservableCollection<GroupItemViewModel> GroupOptionsList { get; } = new();
     public ObservableCollection<ServerTabViewModel> OpenServerTabs { get; } = new();
     public ObservableCollection<OutputLineViewModel> OutputLines { get; } = new();
@@ -94,6 +95,9 @@ public partial class MainViewModel : ObservableObject
     public Array ConnectionTypes => Enum.GetValues(typeof(ConnectionType));
 
     public bool HasOpenTabs => OpenServerTabs.Count > 0;
+    public bool CanEditGroupName => SelectedGroups.Count == 1;
+
+    public event Action<IReadOnlyList<GroupItemViewModel>>? GroupSelectionRequested;
 
     public MainViewModel()
     {
@@ -161,10 +165,27 @@ public partial class MainViewModel : ObservableObject
         if (item is not ServerItemViewModel server)
             return false;
 
-        if (SelectedGroup == null)
+        if (SelectedGroups.Count == 0)
             return true;
 
-        return string.Equals(server.GroupId, SelectedGroup.Id, StringComparison.Ordinal);
+        return SelectedGroups.Any(g => string.Equals(server.GroupId, g.Id, StringComparison.Ordinal));
+    }
+
+    public void SyncSelectedGroups(IReadOnlyList<GroupItemViewModel> groups)
+    {
+        SelectedGroups.Clear();
+        foreach (var group in groups.Distinct())
+            SelectedGroups.Add(group);
+
+        SelectedGroup = SelectedGroups.Count == 1 ? SelectedGroups[0] : null;
+        OnPropertyChanged(nameof(CanEditGroupName));
+        RefreshServerFilter();
+    }
+
+    private void RequestGroupSelection(IReadOnlyList<GroupItemViewModel> groups)
+    {
+        SyncSelectedGroups(groups);
+        GroupSelectionRequested?.Invoke(groups);
     }
 
     private void RefreshServerFilter()
@@ -176,14 +197,25 @@ public partial class MainViewModel : ObservableObject
 
     private void UpdateServersListTitle()
     {
-        if (SelectedGroup == null)
+        var visibleCount = ServersView.Cast<ServerItemViewModel>().Count();
+
+        if (SelectedGroups.Count == 0)
         {
             ServersListTitle = $"Servers ({Servers.Count})";
             return;
         }
 
-        var count = Servers.Count(s => s.GroupId == SelectedGroup.Id);
-        ServersListTitle = $"Servers — {SelectedGroup.Name} ({count})";
+        if (SelectedGroups.Count == 1)
+        {
+            ServersListTitle = $"Servers — {SelectedGroups[0].Name} ({visibleCount})";
+            return;
+        }
+
+        var names = string.Join(", ", SelectedGroups.Select(g => g.Name).Take(3));
+        if (SelectedGroups.Count > 3)
+            names += $" +{SelectedGroups.Count - 3}";
+
+        ServersListTitle = $"Servers — {names} ({visibleCount})";
     }
 
     private void EnsureSelectedServerInFilter()
@@ -427,7 +459,7 @@ public partial class MainViewModel : ObservableObject
             Port = 22,
             Order = Servers.Count,
             CreatedAt = DateTime.Now,
-            GroupId = SelectedGroup?.Id ?? string.Empty
+            GroupId = SelectedGroups.FirstOrDefault()?.Id ?? SelectedGroup?.Id ?? string.Empty
         };
         Servers.Add(server);
         OpenOrSelectTab(server);
@@ -448,7 +480,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var profile = ServerProfileFileParser.ParseFile(dialog.FileName);
-            var groupId = SelectedGroup?.Id ?? string.Empty;
+            var groupId = SelectedGroups.FirstOrDefault()?.Id ?? SelectedGroup?.Id ?? string.Empty;
 
             var existing = Servers.FirstOrDefault(s =>
                 s.Name.Equals(profile.ServerName, StringComparison.OrdinalIgnoreCase));
@@ -607,7 +639,7 @@ public partial class MainViewModel : ObservableObject
             Order = Groups.Count
         };
         Groups.Add(group);
-        SelectedGroup = group;
+        RequestGroupSelection(new[] { group });
         RefreshGroupOptions();
         MarkDirty();
         StatusMessage = "Group added — edit name below, then click Save";
@@ -616,23 +648,40 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void RemoveGroup()
     {
-        if (SelectedGroup == null) return;
-        var result = DialogService.ShowYesNo(
-            $"Remove group '{SelectedGroup.Name}'? Servers in this group will become ungrouped.",
-            "Confirm Remove",
-            DialogKind.Warning);
+        var toRemove = SelectedGroups.Count > 0
+            ? SelectedGroups.ToList()
+            : SelectedGroup != null
+                ? new List<GroupItemViewModel> { SelectedGroup }
+                : new List<GroupItemViewModel>();
+
+        if (toRemove.Count == 0) return;
+
+        var message = toRemove.Count == 1
+            ? $"Remove group '{toRemove[0].Name}'? Servers in this group will become ungrouped."
+            : $"Remove {toRemove.Count} selected groups? Servers in those groups will become ungrouped.";
+
+        var result = DialogService.ShowYesNo(message, "Confirm Remove", DialogKind.Warning);
         if (result != MessageBoxResult.Yes) return;
 
-        var groupId = SelectedGroup.Id;
-        foreach (var s in Servers.Where(s => s.GroupId == groupId))
-            s.GroupId = string.Empty;
+        foreach (var group in toRemove)
+        {
+            foreach (var server in Servers.Where(s => s.GroupId == group.Id))
+                server.GroupId = string.Empty;
 
-        Groups.Remove(SelectedGroup);
+            Groups.Remove(group);
+        }
+
         ReorderGroups();
-        SelectedGroup = Groups.FirstOrDefault();
+        RequestGroupSelection(Array.Empty<GroupItemViewModel>());
         RefreshGroupOptions();
         MarkDirty();
     }
+
+    [RelayCommand]
+    private void SelectAllGroups() => RequestGroupSelection(Groups.ToList());
+
+    [RelayCommand]
+    private void ClearGroupSelection() => RequestGroupSelection(Array.Empty<GroupItemViewModel>());
 
     [RelayCommand]
     private void AddCommand()

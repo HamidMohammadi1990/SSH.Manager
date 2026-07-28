@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,6 +17,37 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         TryLoadWindowIcon();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        ViewModel.GroupSelectionRequested += ApplyGroupSelection;
+    }
+
+    private bool _suppressGroupSelectionSync;
+
+    private void GroupListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressGroupSelectionSync || sender is not ListBox listBox)
+            return;
+
+        ViewModel.SyncSelectedGroups(listBox.SelectedItems.Cast<GroupItemViewModel>().ToList());
+    }
+
+    private void ApplyGroupSelection(IReadOnlyList<GroupItemViewModel> groups)
+    {
+        _suppressGroupSelectionSync = true;
+        try
+        {
+            GroupListBox.SelectedItems.Clear();
+            foreach (var group in groups)
+                GroupListBox.SelectedItems.Add(group);
+        }
+        finally
+        {
+            _suppressGroupSelectionSync = false;
+        }
     }
 
     private void TryLoadWindowIcon()
