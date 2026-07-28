@@ -97,7 +97,6 @@ public partial class MainViewModel : ObservableObject
     public Array ConnectionTypes => Enum.GetValues(typeof(ConnectionType));
 
     public bool HasOpenTabs => OpenServerTabs.Count > 0;
-    public bool CanEditGroupName => SelectedGroups.Count == 1;
     public int SelectedServerCount => SelectedServers.Count;
 
     public event Action<IReadOnlyList<GroupItemViewModel>>? GroupSelectionRequested;
@@ -182,7 +181,6 @@ public partial class MainViewModel : ObservableObject
             SelectedGroups.Add(group);
 
         SelectedGroup = SelectedGroups.Count == 1 ? SelectedGroups[0] : null;
-        OnPropertyChanged(nameof(CanEditGroupName));
         RefreshServerFilter(autoSelectServers: true);
     }
 
@@ -698,16 +696,46 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void AddGroup()
     {
+        var defaultName = $"Group {Groups.Count + 1}";
+        if (!GroupDialog.TryPrompt(Application.Current.MainWindow, "Add Group", "Add", defaultName, out var name))
+            return;
+
         var group = new GroupItemViewModel
         {
-            Name = $"Group {Groups.Count + 1}",
+            Name = name,
             Order = Groups.Count
         };
         Groups.Add(group);
         RequestGroupSelection(new[] { group });
         RefreshGroupOptions();
         MarkDirty();
-        StatusMessage = "Group added — edit name below, then click Save";
+        StatusMessage = $"Group '{name}' added";
+    }
+
+    [RelayCommand]
+    private void RenameGroup()
+    {
+        var group = SelectedGroups.Count == 1
+            ? SelectedGroups[0]
+            : SelectedGroup;
+
+        if (group == null)
+        {
+            DialogService.ShowInfo("Select one group to rename.", "Rename Group");
+            return;
+        }
+
+        if (!GroupDialog.TryPrompt(Application.Current.MainWindow, "Rename Group", "Save", group.Name, out var name))
+            return;
+
+        if (string.Equals(group.Name, name, StringComparison.Ordinal))
+            return;
+
+        group.Name = name;
+        RefreshGroupOptions();
+        UpdateServersListTitle();
+        MarkDirty();
+        StatusMessage = $"Group renamed to '{name}'";
     }
 
     [RelayCommand]
@@ -1307,7 +1335,6 @@ public partial class MainViewModel : ObservableObject
 
     public void OnServerFieldChanged() => MarkDirty();
     public void OnCommandFieldChanged() => MarkDirty();
-    public void OnGroupFieldChanged() => MarkDirty();
 
     public void BeginContextMenuSelection() => _suppressTabOnSelect = true;
 

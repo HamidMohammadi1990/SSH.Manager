@@ -131,8 +131,6 @@ public partial class MainWindow : Window
             e.Cancel = true;
     }
 
-    private void GroupField_Changed(object sender, TextChangedEventArgs e) => ViewModel.OnGroupFieldChanged();
-
     private void ServerList_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListBox listBox) return;

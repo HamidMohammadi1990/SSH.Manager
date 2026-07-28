@@ -94,41 +94,28 @@
                                 <Button Content="Clear" Style="{DynamicResource SecondaryButton}" Padding="10,4"
                                         Command="{Binding ClearGroupSelectionCommand}"/>
                             </StackPanel>
-                            <TextBlock Text="Ctrl+click or Shift+click for multiple. Right-click to remove."
+                            <TextBlock Text="Ctrl+click or Shift+click for multiple. Right-click for rename or remove."
                                        Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10"
                                        Margin="0,0,0,4"/>
                             <ListBox x:Name="GroupListBox"
                                      ItemsSource="{Binding Groups}"
                                      DisplayMemberPath="Name"
                                      SelectionMode="Extended"
-                                     MaxHeight="140"
+                                     MaxHeight="160"
                                      Style="{DynamicResource FlatListBox}"
                                      SelectionChanged="GroupListBox_SelectionChanged"
                                      PreviewMouseRightButtonDown="GroupListBox_PreviewMouseRightButtonDown">
                                 <ListBox.ContextMenu>
                                     <ContextMenu Style="{DynamicResource DarkContextMenu}"
                                                  DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="Rename Group" Style="{DynamicResource DarkMenuItem}"
+                                                  Command="{Binding RenameGroupCommand}"/>
+                                        <Separator Style="{DynamicResource DarkMenuSeparator}"/>
                                         <MenuItem Header="Remove Group" Style="{DynamicResource DarkMenuItem}"
                                                   Command="{Binding RemoveGroupCommand}"/>
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                             </ListBox>
-                            <TextBlock Text="Group Name" Style="{DynamicResource FieldLabel}" Margin="0,8,0,0"/>
-                            <TextBox Text="{Binding SelectedGroup.Name, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,0,4" TextChanged="GroupField_Changed"
-                                     IsEnabled="{Binding CanEditGroupName}"/>
-                            <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="Select one group to rename"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CanEditGroupName}" Value="True">
-                                                <Setter Property="Text" Value="Edit name, then click Save"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
                         </StackPanel>
                     </Expander>
 
