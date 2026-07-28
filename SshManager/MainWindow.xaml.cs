@@ -23,9 +23,11 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         ViewModel.GroupSelectionRequested += ApplyGroupSelection;
+        ViewModel.ServerSelectionRequested += ApplyServerSelection;
     }
 
     private bool _suppressGroupSelectionSync;
+    private bool _suppressServerSelectionSync;
 
     private void GroupListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -33,6 +35,33 @@ public partial class MainWindow : Window
             return;
 
         ViewModel.SyncSelectedGroups(listBox.SelectedItems.Cast<GroupItemViewModel>().ToList());
+    }
+
+    private void GroupListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox listBox)
+            return;
+
+        if (FindListBoxItem(listBox, e.OriginalSource) is not ListBoxItem item)
+            return;
+
+        if (item.DataContext is GroupItemViewModel group && !listBox.SelectedItems.Contains(group))
+        {
+            _suppressGroupSelectionSync = true;
+            try
+            {
+                listBox.SelectedItems.Clear();
+                listBox.SelectedItems.Add(group);
+            }
+            finally
+            {
+                _suppressGroupSelectionSync = false;
+            }
+
+            ViewModel.SyncSelectedGroups(new[] { group });
+        }
+
+        item.Focus();
     }
 
     private void ApplyGroupSelection(IReadOnlyList<GroupItemViewModel> groups)
@@ -47,6 +76,33 @@ public partial class MainWindow : Window
         finally
         {
             _suppressGroupSelectionSync = false;
+        }
+    }
+
+    private void ServerListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressServerSelectionSync || sender is not ListBox listBox)
+            return;
+
+        var selected = listBox.SelectedItems.Cast<ServerItemViewModel>().ToList();
+        ViewModel.SyncSelectedServers(selected);
+
+        if (selected.Count == 1)
+            ViewModel.EnsureServerEditorOpen(selected[0]);
+    }
+
+    private void ApplyServerSelection(IReadOnlyList<ServerItemViewModel> servers)
+    {
+        _suppressServerSelectionSync = true;
+        try
+        {
+            ServerListBox.SelectedItems.Clear();
+            foreach (var server in servers)
+                ServerListBox.SelectedItems.Add(server);
+        }
+        finally
+        {
+            _suppressServerSelectionSync = false;
         }
     }
 
@@ -80,6 +136,9 @@ public partial class MainWindow : Window
     private void ServerList_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListBox listBox) return;
+        if (Keyboard.Modifiers is ModifierKeys.Control or ModifierKeys.Shift)
+            return;
+
         if (FindListBoxItem(listBox, e.OriginalSource) is not ListBoxItem { DataContext: ServerItemViewModel server })
             return;
 
@@ -92,8 +151,23 @@ public partial class MainWindow : Window
         if (FindListBoxItem(listBox, e.OriginalSource) is not ListBoxItem item)
             return;
 
+        if (item.DataContext is ServerItemViewModel server && !listBox.SelectedItems.Contains(server))
+        {
+            _suppressServerSelectionSync = true;
+            try
+            {
+                listBox.SelectedItems.Clear();
+                listBox.SelectedItems.Add(server);
+            }
+            finally
+            {
+                _suppressServerSelectionSync = false;
+            }
+
+            ViewModel.SyncSelectedServers(new[] { server });
+        }
+
         ViewModel.BeginContextMenuSelection();
-        item.IsSelected = true;
         item.Focus();
     }
 

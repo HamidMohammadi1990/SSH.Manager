@@ -77,105 +77,124 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="Groups" Style="{DynamicResource SectionTitle}"/>
-                    <StackPanel Grid.Row="1" Margin="0,0,0,8">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <Button Content="+ Add Group" Style="{DynamicResource PrimaryButton}" Margin="0,0,4,0"
-                                    Command="{Binding AddGroupCommand}"/>
-                            <Button Content="Remove" Style="{DynamicResource DangerButton}" Margin="0,0,4,0"
-                                    Command="{Binding RemoveGroupCommand}"/>
+                    <Expander Grid.Row="0" IsExpanded="True" Margin="0,0,0,8">
+                        <Expander.Header>
+                            <TextBlock Text="Groups" Style="{DynamicResource SectionTitle}" Margin="0"/>
+                        </Expander.Header>
+                        <StackPanel Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button Content="+ Add Group" Style="{DynamicResource PrimaryButton}" Margin="0,0,4,0"
+                                        Command="{Binding AddGroupCommand}"/>
+                                <Button Content="All" Style="{DynamicResource SecondaryButton}" Padding="10,4" Margin="0,0,4,0"
+                                        Command="{Binding SelectAllGroupsCommand}"/>
+                                <Button Content="Clear" Style="{DynamicResource SecondaryButton}" Padding="10,4"
+                                        Command="{Binding ClearGroupSelectionCommand}"/>
+                            </StackPanel>
+                            <TextBlock Text="Ctrl+click or Shift+click for multiple. Right-click to remove."
+                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10"
+                                       Margin="0,0,0,4"/>
+                            <ListBox x:Name="GroupListBox"
+                                     ItemsSource="{Binding Groups}"
+                                     DisplayMemberPath="Name"
+                                     SelectionMode="Extended"
+                                     MaxHeight="140"
+                                     Style="{DynamicResource FlatListBox}"
+                                     SelectionChanged="GroupListBox_SelectionChanged"
+                                     PreviewMouseRightButtonDown="GroupListBox_PreviewMouseRightButtonDown">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu Style="{DynamicResource DarkContextMenu}"
+                                                 DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="Remove Group" Style="{DynamicResource DarkMenuItem}"
+                                                  Command="{Binding RemoveGroupCommand}"/>
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                            </ListBox>
+                            <TextBlock Text="Group Name" Style="{DynamicResource FieldLabel}" Margin="0,8,0,0"/>
+                            <TextBox Text="{Binding SelectedGroup.Name, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,0,4" TextChanged="GroupField_Changed"
+                                     IsEnabled="{Binding CanEditGroupName}"/>
+                            <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="Select one group to rename"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanEditGroupName}" Value="True">
+                                                <Setter Property="Text" Value="Edit name, then click Save"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <Button Content="All" Style="{DynamicResource SecondaryButton}" Padding="10,4" Margin="0,0,4,0"
-                                    Command="{Binding SelectAllGroupsCommand}"/>
-                            <Button Content="Clear" Style="{DynamicResource SecondaryButton}" Padding="10,4"
-                                    Command="{Binding ClearGroupSelectionCommand}"/>
-                        </StackPanel>
-                        <TextBlock Text="Select Groups" Style="{DynamicResource FieldLabel}"/>
-                        <TextBlock Text="Ctrl+click or Shift+click to select multiple groups."
-                                   Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10"
-                                   Margin="0,0,0,4"/>
-                        <ListBox x:Name="GroupListBox"
-                                 ItemsSource="{Binding Groups}"
-                                 DisplayMemberPath="Name"
-                                 SelectionMode="Extended"
-                                 MaxHeight="120"
-                                 Style="{DynamicResource FlatListBox}"
-                                 SelectionChanged="GroupListBox_SelectionChanged"
-                                 Margin="0,0,0,8"/>
-                        <TextBlock Text="Group Name" Style="{DynamicResource FieldLabel}"/>
-                        <TextBox Text="{Binding SelectedGroup.Name, UpdateSourceTrigger=PropertyChanged}"
-                                 Margin="0,0,0,4" TextChanged="GroupField_Changed"
-                                 IsEnabled="{Binding CanEditGroupName}"/>
-                        <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="10" Margin="0,0,0,4">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="Select one group to rename"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CanEditGroupName}" Value="True">
-                                            <Setter Property="Text" Value="Edit name, then click Save"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
+                    </Expander>
 
-                    <Grid Grid.Row="2">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <TextBlock Text="{Binding ServersListTitle}" Style="{DynamicResource SectionTitle}"/>
-                        <ListBox x:Name="ServerListBox" Grid.Row="1" ItemsSource="{Binding ServersView}"
-                                 SelectedItem="{Binding SelectedServer}"
-                                 MouseLeftButtonUp="ServerList_MouseLeftButtonUp"
-                                 PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown">
-                            <ListBox.ContextMenu>
-                                <ContextMenu Style="{DynamicResource DarkContextMenu}"
-                                             DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="View Details" Style="{DynamicResource DarkMenuItem}"
-                                              Click="ViewDetailsMenuItem_Click"/>
-                                    <Separator Style="{DynamicResource DarkMenuSeparator}"/>
-                                    <MenuItem Header="Remove Server" Style="{DynamicResource DarkMenuItem}"
-                                              Command="{Binding RemoveServerCommand}"/>
-                                </ContextMenu>
-                            </ListBox.ContextMenu>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="10"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                                 Fill="{Binding ConnectionStatus, Converter={StaticResource StatusBrush}}"/>
-                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                            <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11">
-                                                <Run Text="{Binding Host, Mode=OneWay}"/>
-                                                <Run Text=":"/>
-                                                <Run Text="{Binding Port, Mode=OneWay}"/>
-                                                <Run Text=" • "/>
-                                                <Run Text="{Binding ConnectionType, Converter={StaticResource ConnTypeStr}, Mode=OneWay}"/>
-                                            </TextBlock>
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="2" Text="{Binding Commands.Count, StringFormat={}{0} cmd}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"
-                                                   VerticalAlignment="Center"/>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
+                    <Expander Grid.Row="1" IsExpanded="True" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+                        <Expander.Header>
+                            <TextBlock Text="{Binding ServersListTitle}" Style="{DynamicResource SectionTitle}" Margin="0"/>
+                        </Expander.Header>
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button Content="All" Style="{DynamicResource SecondaryButton}" Padding="10,4" Margin="0,0,4,0"
+                                        Command="{Binding SelectAllVisibleServersCommand}"/>
+                                <Button Content="Clear" Style="{DynamicResource SecondaryButton}" Padding="10,4"
+                                        Command="{Binding ClearServerSelectionCommand}"/>
+                            </StackPanel>
+                            <ListBox x:Name="ServerListBox" Grid.Row="1"
+                                     ItemsSource="{Binding ServersView}"
+                                     SelectionMode="Extended"
+                                     Style="{DynamicResource FlatListBox}"
+                                     SelectionChanged="ServerListBox_SelectionChanged"
+                                     MouseLeftButtonUp="ServerList_MouseLeftButtonUp"
+                                     PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu Style="{DynamicResource DarkContextMenu}"
+                                                 DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="View Details" Style="{DynamicResource DarkMenuItem}"
+                                                  Click="ViewDetailsMenuItem_Click"/>
+                                        <Separator Style="{DynamicResource DarkMenuSeparator}"/>
+                                        <MenuItem Header="Remove Server" Style="{DynamicResource DarkMenuItem}"
+                                                  Command="{Binding RemoveServerCommand}"/>
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                     Fill="{Binding ConnectionStatus, Converter={StaticResource StatusBrush}}"/>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11">
+                                                    <Run Text="{Binding Host, Mode=OneWay}"/>
+                                                    <Run Text=":"/>
+                                                    <Run Text="{Binding Port, Mode=OneWay}"/>
+                                                    <Run Text=" • "/>
+                                                    <Run Text="{Binding ConnectionType, Converter={StaticResource ConnTypeStr}, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding Commands.Count, StringFormat={}{0} cmd}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Expander>
 
-                    <StackPanel Grid.Row="3" Margin="0,8,0,0">
+                    <StackPanel Grid.Row="2" Margin="0,8,0,0">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Button Content="+ Add" Style="{DynamicResource PrimaryButton}" Margin="0,0,4,0"
                                     Command="{Binding AddServerCommand}"/>

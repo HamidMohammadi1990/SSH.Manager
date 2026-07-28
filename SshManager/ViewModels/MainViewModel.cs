@@ -27,6 +27,7 @@ public partial class MainViewModel : ObservableObject
     private GroupItemViewModel? _watchedGroup;
     private bool _isTabSync;
     private bool _suppressTabOnSelect;
+    private bool _suppressServerSelectionSideEffects;
 
     [ObservableProperty] private string _currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -85,6 +86,7 @@ public partial class MainViewModel : ObservableObject
     public ICollectionView ServersView { get; }
     public ObservableCollection<GroupItemViewModel> Groups { get; } = new();
     public ObservableCollection<GroupItemViewModel> SelectedGroups { get; } = new();
+    public ObservableCollection<ServerItemViewModel> SelectedServers { get; } = new();
     public ObservableCollection<GroupItemViewModel> GroupOptionsList { get; } = new();
     public ObservableCollection<ServerTabViewModel> OpenServerTabs { get; } = new();
     public ObservableCollection<OutputLineViewModel> OutputLines { get; } = new();
@@ -96,8 +98,10 @@ public partial class MainViewModel : ObservableObject
 
     public bool HasOpenTabs => OpenServerTabs.Count > 0;
     public bool CanEditGroupName => SelectedGroups.Count == 1;
+    public int SelectedServerCount => SelectedServers.Count;
 
     public event Action<IReadOnlyList<GroupItemViewModel>>? GroupSelectionRequested;
+    public event Action<IReadOnlyList<ServerItemViewModel>>? ServerSelectionRequested;
 
     public MainViewModel()
     {
@@ -179,8 +183,52 @@ public partial class MainViewModel : ObservableObject
 
         SelectedGroup = SelectedGroups.Count == 1 ? SelectedGroups[0] : null;
         OnPropertyChanged(nameof(CanEditGroupName));
-        RefreshServerFilter();
+        RefreshServerFilter(autoSelectServers: true);
     }
+
+    public void SyncSelectedServers(IReadOnlyList<ServerItemViewModel> servers)
+    {
+        SelectedServers.Clear();
+        foreach (var server in servers.Distinct())
+            SelectedServers.Add(server);
+
+        _suppressServerSelectionSideEffects = true;
+        try
+        {
+            if (SelectedServer != null && !SelectedServers.Contains(SelectedServer))
+                SelectedServer = SelectedServers.LastOrDefault();
+        }
+        finally
+        {
+            _suppressServerSelectionSideEffects = false;
+        }
+
+        OnPropertyChanged(nameof(SelectedServerCount));
+        UpdateServersListTitle();
+    }
+
+    private void RequestServerSelection(IReadOnlyList<ServerItemViewModel> servers)
+    {
+        SyncSelectedServers(servers);
+        ServerSelectionRequested?.Invoke(servers);
+    }
+
+    private void AutoSelectVisibleServers()
+    {
+        RequestServerSelection(ServersView.Cast<ServerItemViewModel>().ToList());
+    }
+
+    private void PruneServerSelectionToVisible()
+    {
+        var visible = ServersView.Cast<ServerItemViewModel>().ToHashSet();
+        var pruned = SelectedServers.Where(visible.Contains).ToList();
+        if (pruned.Count == SelectedServers.Count)
+            return;
+
+        RequestServerSelection(pruned);
+    }
+
+    private IReadOnlyList<ServerItemViewModel> GetTargetServers() => SelectedServers.ToList();
 
     private void RequestGroupSelection(IReadOnlyList<GroupItemViewModel> groups)
     {
@@ -188,26 +236,39 @@ public partial class MainViewModel : ObservableObject
         GroupSelectionRequested?.Invoke(groups);
     }
 
-    private void RefreshServerFilter()
+    private void RefreshServerFilter(bool autoSelectServers = false)
     {
         ServersView.Refresh();
         UpdateServersListTitle();
-        EnsureSelectedServerInFilter();
+
+        if (autoSelectServers)
+            AutoSelectVisibleServers();
+        else
+            PruneServerSelectionToVisible();
     }
 
     private void UpdateServersListTitle()
     {
-        var visibleCount = ServersView.Cast<ServerItemViewModel>().Count();
+        var visibleServers = ServersView.Cast<ServerItemViewModel>().ToList();
+        var visibleCount = visibleServers.Count;
+        var selectedInView = SelectedServers.Count(visibleServers.Contains);
+        var selectionSuffix = selectedInView == 0 && visibleCount > 0
+            ? " · none selected"
+            : selectedInView > 0 && selectedInView < visibleCount
+                ? $" · {selectedInView} selected"
+                : selectedInView > 0
+                    ? " · all selected"
+                    : string.Empty;
 
         if (SelectedGroups.Count == 0)
         {
-            ServersListTitle = $"Servers ({Servers.Count})";
+            ServersListTitle = $"Servers ({visibleCount}){selectionSuffix}";
             return;
         }
 
         if (SelectedGroups.Count == 1)
         {
-            ServersListTitle = $"Servers — {SelectedGroups[0].Name} ({visibleCount})";
+            ServersListTitle = $"Servers — {SelectedGroups[0].Name} ({visibleCount}){selectionSuffix}";
             return;
         }
 
@@ -215,18 +276,7 @@ public partial class MainViewModel : ObservableObject
         if (SelectedGroups.Count > 3)
             names += $" +{SelectedGroups.Count - 3}";
 
-        ServersListTitle = $"Servers — {names} ({visibleCount})";
-    }
-
-    private void EnsureSelectedServerInFilter()
-    {
-        if (SelectedServer == null)
-            return;
-
-        if (ServersView.Contains(SelectedServer))
-            return;
-
-        SelectedServer = ServersView.Cast<ServerItemViewModel>().FirstOrDefault();
+        ServersListTitle = $"Servers — {names} ({visibleCount}){selectionSuffix}";
     }
 
     private void OnSelectedGroupPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -287,7 +337,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedServerChanged(ServerItemViewModel? value)
     {
-        if (value != null && !_isTabSync)
+        if (value != null && !_isTabSync && !_suppressServerSelectionSideEffects)
         {
             if (_suppressTabOnSelect)
                 _suppressTabOnSelect = false;
@@ -387,7 +437,7 @@ public partial class MainViewModel : ObservableObject
 
         _isDirty = false;
         StatusMessage = "Ready";
-        RefreshServerFilter();
+        RefreshServerFilter(autoSelectServers: true);
     }
 
     public void SaveData()
@@ -551,18 +601,33 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void RemoveServer(ServerItemViewModel? server = null)
     {
-        var target = server ?? SelectedServer;
-        if (target == null) return;
-        var result = DialogService.ShowYesNo(
-            $"Remove server '{target.Name}'?",
-            "Confirm Remove",
-            DialogKind.Warning);
+        var targets = server != null
+            ? new List<ServerItemViewModel> { server }
+            : SelectedServers.Count > 0
+                ? SelectedServers.ToList()
+                : SelectedServer != null
+                    ? new List<ServerItemViewModel> { SelectedServer }
+                    : new List<ServerItemViewModel>();
+
+        if (targets.Count == 0) return;
+
+        var message = targets.Count == 1
+            ? $"Remove server '{targets[0].Name}'?"
+            : $"Remove {targets.Count} selected servers?";
+
+        var result = DialogService.ShowYesNo(message, "Confirm Remove", DialogKind.Warning);
         if (result != MessageBoxResult.Yes) return;
 
-        Servers.Remove(target);
-        CloseTabForServer(target);
+        foreach (var target in targets.ToList())
+        {
+            Servers.Remove(target);
+            CloseTabForServer(target);
+        }
+
         ReorderServers();
-        SelectedServer = ServersView.Cast<ServerItemViewModel>().FirstOrDefault();
+        var remaining = SelectedServers.Where(Servers.Contains).ToList();
+        RequestServerSelection(remaining);
+        SelectedServer = remaining.LastOrDefault() ?? ServersView.Cast<ServerItemViewModel>().FirstOrDefault();
         MarkDirty();
     }
 
@@ -678,6 +743,13 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void SelectAllVisibleServers() =>
+        RequestServerSelection(ServersView.Cast<ServerItemViewModel>().ToList());
+
+    [RelayCommand]
+    private void ClearServerSelection() => RequestServerSelection(Array.Empty<ServerItemViewModel>());
+
+    [RelayCommand]
     private void SelectAllGroups() => RequestGroupSelection(Groups.ToList());
 
     [RelayCommand]
@@ -786,12 +858,20 @@ public partial class MainViewModel : ObservableObject
     private async Task TestAllConnectionsAsync()
     {
         if (IsTestingConnections || IsExecuting) return;
+
+        var targetServers = GetTargetServers();
+        if (targetServers.Count == 0)
+        {
+            DialogService.ShowInfo("No servers selected.", "Nothing to Test");
+            return;
+        }
+
         IsTestingConnections = true;
         StatusMessage = "Testing connections...";
 
         var settings = BuildSettings();
 
-        foreach (var server in Servers)
+        foreach (var server in targetServers)
         {
             server.ConnectionStatus = ConnectionStatus.Testing;
             var isOnline = await _connectionTestService.TestConnectionAsync(server.ToModel(
@@ -801,8 +881,8 @@ public partial class MainViewModel : ObservableObject
             server.ConnectionStatus = isOnline ? ConnectionStatus.Online : ConnectionStatus.Offline;
         }
 
-        var online = Servers.Count(s => s.ConnectionStatus == ConnectionStatus.Online);
-        StatusMessage = $"Connection test complete: {online}/{Servers.Count} online";
+        var online = targetServers.Count(s => s.ConnectionStatus == ConnectionStatus.Online);
+        StatusMessage = $"Connection test complete: {online}/{targetServers.Count} online";
         IsTestingConnections = false;
     }
 
@@ -811,10 +891,14 @@ public partial class MainViewModel : ObservableObject
     {
         if (IsExecuting) return;
 
-        var serversWithCommands = Servers.Where(s => s.Commands.Count > 0).ToList();
+        var serversWithCommands = GetTargetServers().Where(s => s.Commands.Count > 0).ToList();
         if (serversWithCommands.Count == 0)
         {
-            DialogService.ShowInfo("No servers with commands to execute.", "Nothing to Run");
+            DialogService.ShowInfo(
+                SelectedServers.Count == 0
+                    ? "No servers selected."
+                    : "No selected servers with commands to execute.",
+                "Nothing to Run");
             return;
         }
 
@@ -825,11 +909,11 @@ public partial class MainViewModel : ObservableObject
         ExecutionSummary = string.Empty;
         _executionCts = new CancellationTokenSource();
 
-        AddOutput("=== Execution started ===", "Info");
+        AddOutput($"=== Execution started ({serversWithCommands.Count} server(s)) ===", "Info");
         StatusMessage = "Executing commands...";
 
         var settings = BuildSettings();
-        var serverModels = Servers.Select(s =>
+        var serverModels = serversWithCommands.Select(s =>
         {
             string? enc = null;
             if (s.UseCustomCredentials && !string.IsNullOrEmpty(s.CustomPassword))
