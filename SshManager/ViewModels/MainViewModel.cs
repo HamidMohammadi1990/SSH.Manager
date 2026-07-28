@@ -1089,7 +1089,111 @@ public partial class MainViewModel : ObservableObject
         };
     }
 
-    partial void OnIsExecutingChanged(bool value) => ExecuteBatchCommand.NotifyCanExecuteChanged();
+    partial void OnIsExecutingChanged(bool value)
+    {
+        ExecuteBatchCommand.NotifyCanExecuteChanged();
+        RunCommandCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRunCommand))]
+    private async Task RunCommandAsync()
+    {
+        if (IsExecuting) return;
+
+        var selectedServers = GetTargetServers();
+        var dialog = new RunCommandDialog
+        {
+            Owner = Application.Current.MainWindow
+        };
+        dialog.Initialize(
+            DefaultUsername,
+            InferRunCommandConnectionType(selectedServers),
+            BuildRunCommandInitialTargets(selectedServers),
+            prefilledFromSelection: selectedServers.Count > 0);
+
+        if (dialog.ShowDialog() != true)
+        {
+            StatusMessage = "Run command cancelled";
+            return;
+        }
+
+        BatchJob job;
+        try
+        {
+            job = RunCommandJobBuilder.Build(dialog);
+        }
+        catch (Exception ex)
+        {
+            DialogService.ShowError(ex.Message, "Run Command");
+            return;
+        }
+
+        IsExecuting = true;
+        OutputLines.Clear();
+        ExecutionResults.Clear();
+        HasExecutionResults = false;
+        ExecutionSummary = string.Empty;
+        _executionCts = new CancellationTokenSource();
+
+        AddOutput($"=== Run command started: {job.Targets.Count} target(s), {job.Defaults.ConnectionType} port {job.Defaults.Port} ===", "Info");
+        StatusMessage = "Running command on targets...";
+
+        _batchExecutionService.ServerStarted += OnServerStarted;
+        _batchExecutionService.StepCompleted += OnCommandCompleted;
+        _batchExecutionService.SessionCompleted += OnSessionCompleted;
+        _batchExecutionService.OutputReceived += OnBatchOutputReceived;
+
+        try
+        {
+            await _batchExecutionService.ExecuteAsync(job, BuildSettings(), _executionCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            AddOutput("=== Run command cancelled ===", "Warning");
+            StatusMessage = "Run command cancelled";
+        }
+        catch (Exception ex)
+        {
+            AddOutput($"Fatal error: {ex.Message}", "Error");
+            StatusMessage = "Run command failed";
+        }
+        finally
+        {
+            _batchExecutionService.ServerStarted -= OnServerStarted;
+            _batchExecutionService.StepCompleted -= OnCommandCompleted;
+            _batchExecutionService.SessionCompleted -= OnSessionCompleted;
+            _batchExecutionService.OutputReceived -= OnBatchOutputReceived;
+            IsExecuting = false;
+            _executionCts?.Dispose();
+            _executionCts = null;
+            RunCommandCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private bool CanRunCommand() => !IsExecuting;
+
+    private static List<string> BuildRunCommandInitialTargets(IReadOnlyList<ServerItemViewModel> servers)
+    {
+        return servers
+            .Select(s => s.Host?.Trim() ?? string.Empty)
+            .Where(h => h.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static ConnectionType InferRunCommandConnectionType(IReadOnlyList<ServerItemViewModel> servers)
+    {
+        if (servers.Count == 0)
+            return ConnectionType.Ssh;
+
+        if (servers.All(s => s.ConnectionType == ConnectionType.Telnet))
+            return ConnectionType.Telnet;
+
+        if (servers.All(s => s.ConnectionType == ConnectionType.Ssh))
+            return ConnectionType.Ssh;
+
+        return servers[0].ConnectionType;
+    }
 
     [RelayCommand]
     private void ExportData()

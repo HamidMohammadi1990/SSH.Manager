@@ -204,6 +204,9 @@
                             <Button Content="▲" Style="{DynamicResource IconButton}" Command="{Binding MoveServerUpCommand}" ToolTip="Move Up"/>
                             <Button Content="▼" Style="{DynamicResource IconButton}" Command="{Binding MoveServerDownCommand}" ToolTip="Move Down"/>
                         </StackPanel>
+                        <Button Content="▶ Run Command" Style="{DynamicResource PrimaryButton}" Margin="0,0,0,8"
+                                Command="{Binding RunCommandCommand}"
+                                IsEnabled="{Binding IsExecuting, Converter={StaticResource InverseBool}}"/>
                         <Button Content="🔍 Test All Connections" Style="{DynamicResource SecondaryButton}"
                                 Command="{Binding TestAllConnectionsCommand}"
                                 IsEnabled="{Binding IsTestingConnections, Converter={StaticResource InverseBool}}"/>
