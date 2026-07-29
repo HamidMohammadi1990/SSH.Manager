@@ -20,21 +20,10 @@ public partial class RunCommandDialog : Window
         Loaded += OnLoaded;
     }
 
-    public void Initialize(
-        string defaultUsername,
-        ConnectionType connectionType,
-        IEnumerable<string> initialTargets,
-        bool prefilledFromSelection)
+    public void Initialize(string defaultUsername, ConnectionType connectionType)
     {
         Username = defaultUsername;
-        TargetsText = string.Join(Environment.NewLine, initialTargets
-            .Select(t => t.Trim())
-            .Where(t => t.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase));
-
-        PrefillHintText.Text = prefilledFromSelection
-            ? "Targets were filled from selected servers. You can edit or paste more before running."
-            : "No servers selected — enter targets and commands manually.";
+        TargetsText = string.Empty;
 
         if (connectionType == ConnectionType.Ssh)
             SshRadio.IsChecked = true;

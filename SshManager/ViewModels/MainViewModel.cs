@@ -1133,11 +1133,7 @@ public partial class MainViewModel : ObservableObject
         {
             Owner = Application.Current.MainWindow
         };
-        dialog.Initialize(
-            DefaultUsername,
-            InferRunCommandConnectionType(selectedServers),
-            BuildRunCommandInitialTargets(selectedServers),
-            prefilledFromSelection: selectedServers.Count > 0);
+        dialog.Initialize(DefaultUsername, InferRunCommandConnectionType(selectedServers));
 
         if (dialog.ShowDialog() != true)
         {
@@ -1199,15 +1195,6 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanRunCommand() => !IsExecuting;
-
-    private static List<string> BuildRunCommandInitialTargets(IReadOnlyList<ServerItemViewModel> servers)
-    {
-        return servers
-            .Select(s => s.Host?.Trim() ?? string.Empty)
-            .Where(h => h.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
 
     private static ConnectionType InferRunCommandConnectionType(IReadOnlyList<ServerItemViewModel> servers)
     {
