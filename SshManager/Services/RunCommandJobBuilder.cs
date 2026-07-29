@@ -5,13 +5,16 @@ namespace SshManager.Services;
 
 public static class RunCommandJobBuilder
 {
-    public static BatchJob Build(RunCommandDialog dialog)
-    {
-        var targets = dialog.Targets
-            .Select(t => t.Value.Trim())
-            .Where(t => t.Length > 0)
+    public static List<string> ParseTargets(string text) =>
+        text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+    public static BatchJob Build(RunCommandDialog dialog)
+    {
+        var targets = ParseTargets(dialog.TargetsText);
 
         var connectionType = dialog.ConnectionType;
 

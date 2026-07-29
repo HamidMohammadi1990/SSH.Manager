@@ -73,24 +73,19 @@
                 </StackPanel>
 
                 <TextBlock Text="Targets" Style="{DynamicResource SectionTitle}"/>
-                <TextBlock Text="Host IP for each device. Add or remove targets as needed."
+                <TextBlock Text="One IP or hostname per line. Paste multiple targets from a file."
                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"
                            TextWrapping="Wrap" Margin="0,0,0,8"/>
-                <ListBox x:Name="TargetsList" MinHeight="100" MaxHeight="160"
-                         Style="{DynamicResource FlatListBox}" Margin="0,0,0,8">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{DynamicResource FormTextBox}" Margin="0,2"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                    <Button Content="+ Add Target" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
-                            Click="AddTarget_Click"/>
-                    <Button Content="− Remove" Style="{DynamicResource SecondaryButton}"
-                            Click="RemoveTarget_Click"/>
-                </StackPanel>
+                <TextBox x:Name="TargetsBox"
+                         AcceptsReturn="True"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Auto"
+                         MinHeight="100"
+                         MaxHeight="160"
+                         FontFamily="{DynamicResource MonoFont}"
+                         FontSize="12"
+                         Style="{DynamicResource FormTextBox}"
+                         Margin="0,0,0,16"/>
 
                 <TextBlock Text="Commands" Style="{DynamicResource SectionTitle}"/>
                 <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"

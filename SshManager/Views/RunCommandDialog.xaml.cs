@@ -1,31 +1,22 @@
-using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
-using CommunityToolkit.Mvvm.ComponentModel;
 using SshManager.Models;
 using SshManager.Services;
 
 namespace SshManager.Views;
 
-public partial class TargetEntry : ObservableObject
-{
-    [ObservableProperty] private string _value = string.Empty;
-}
-
 public partial class RunCommandDialog : Window
 {
-    public ObservableCollection<TargetEntry> Targets { get; } = new();
-
     public string Username { get; private set; } = string.Empty;
     public string Password { get; private set; } = string.Empty;
     public string EnablePassword { get; private set; } = string.Empty;
+    public string TargetsText { get; private set; } = string.Empty;
     public string CommandsText { get; private set; } = string.Empty;
     public ConnectionType ConnectionType => SshRadio.IsChecked == true ? ConnectionType.Ssh : ConnectionType.Telnet;
 
     public RunCommandDialog()
     {
         InitializeComponent();
-        TargetsList.ItemsSource = Targets;
         Loaded += OnLoaded;
     }
 
@@ -36,17 +27,14 @@ public partial class RunCommandDialog : Window
         bool prefilledFromSelection)
     {
         Username = defaultUsername;
-        PrefillHintText.Text = prefilledFromSelection
-            ? "Targets were filled from selected servers. You can edit them before running."
-            : "No servers selected — enter targets and commands manually.";
+        TargetsText = string.Join(Environment.NewLine, initialTargets
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
 
-        foreach (var target in initialTargets
-                     .Select(t => t.Trim())
-                     .Where(t => t.Length > 0)
-                     .Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            Targets.Add(new TargetEntry { Value = target });
-        }
+        PrefillHintText.Text = prefilledFromSelection
+            ? "Targets were filled from selected servers. You can edit or paste more before running."
+            : "No servers selected — enter targets and commands manually.";
 
         if (connectionType == ConnectionType.Ssh)
             SshRadio.IsChecked = true;
@@ -59,6 +47,7 @@ public partial class RunCommandDialog : Window
         UsernameBox.Text = Username;
         PasswordHiddenBox.Password = Password;
         EnablePasswordHiddenBox.Password = EnablePassword;
+        TargetsBox.Text = TargetsText;
         CommandsBox.Text = CommandsText;
         UpdateEnablePasswordVisibility();
         UsernameBox.Focus();
@@ -72,25 +61,6 @@ public partial class RunCommandDialog : Window
         var text = CommandsBox.Text ?? string.Empty;
         var needsPassword = text.Contains("<password>", StringComparison.OrdinalIgnoreCase);
         EnablePasswordPanel.Visibility = needsPassword ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void AddTarget_Click(object sender, RoutedEventArgs e)
-    {
-        Targets.Add(new TargetEntry());
-        TargetsList.SelectedIndex = Targets.Count - 1;
-        TargetsList.ScrollIntoView(TargetsList.SelectedItem);
-    }
-
-    private void RemoveTarget_Click(object sender, RoutedEventArgs e)
-    {
-        if (TargetsList.SelectedItem is TargetEntry entry)
-        {
-            Targets.Remove(entry);
-            return;
-        }
-
-        if (Targets.Count > 0)
-            Targets.RemoveAt(Targets.Count - 1);
     }
 
     private void RevealPasswordToggle_Changed(object sender, RoutedEventArgs e) =>
@@ -134,6 +104,7 @@ public partial class RunCommandDialog : Window
         Username = UsernameBox.Text.Trim();
         Password = CurrentPassword;
         EnablePassword = CurrentEnablePassword;
+        TargetsText = TargetsBox.Text;
         CommandsText = CommandsBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(Username))
@@ -150,15 +121,10 @@ public partial class RunCommandDialog : Window
             return;
         }
 
-        var targets = Targets
-            .Select(t => t.Value.Trim())
-            .Where(t => t.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (targets.Count == 0)
+        if (RunCommandJobBuilder.ParseTargets(TargetsText).Count == 0)
         {
-            DialogService.ShowWarning("Add at least one target IP or hostname.", "Validation");
+            DialogService.ShowWarning("Enter at least one target IP or hostname (one per line).", "Validation");
+            TargetsBox.Focus();
             return;
         }
 
