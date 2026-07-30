@@ -20,10 +20,20 @@ public partial class RunCommandDialog : Window
         Loaded += OnLoaded;
     }
 
-    public void Initialize(string defaultUsername, ConnectionType connectionType)
+    public void Initialize(
+        string defaultUsername,
+        ConnectionType connectionType,
+        IEnumerable<string> initialTargets)
     {
         Username = defaultUsername;
-        TargetsText = string.Empty;
+        TargetsText = string.Join(Environment.NewLine, initialTargets
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        PrefillHintText.Text = TargetsText.Length > 0
+            ? "Targets were filled from selected servers. You can edit or paste more IPs."
+            : "Paste target IPs (one per line), then enter commands.";
 
         if (connectionType == ConnectionType.Ssh)
             SshRadio.IsChecked = true;

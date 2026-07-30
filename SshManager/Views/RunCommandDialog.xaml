@@ -17,7 +17,6 @@
         <StackPanel>
             <TextBlock Text="Run Command" Style="{DynamicResource SectionTitle}" FontSize="18"/>
             <TextBlock x:Name="PrefillHintText"
-                       Text="Enter credentials, paste target IPs (one per line), then commands."
                        Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
                        TextWrapping="Wrap" Margin="0,0,0,12"/>
         </StackPanel>
