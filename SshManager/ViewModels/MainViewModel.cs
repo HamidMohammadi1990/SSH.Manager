@@ -30,6 +30,8 @@ public partial class MainViewModel : ObservableObject
     private bool _suppressServerSelectionSideEffects;
 
     [ObservableProperty] private string _currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
+    [ObservableProperty] private string _currentPersianDate = PersianDateHelper.FormatLong(DateTime.Now);
+    [ObservableProperty] private string _currentPersianDateShort = PersianDateHelper.FormatShort(DateTime.Now);
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
     [ObservableProperty] private string _statusMessage = "Ready";
     [ObservableProperty] private bool _isExecuting;
@@ -48,6 +50,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private TargetItemViewModel? _selectedTarget;
     [ObservableProperty] private string _executionSummary = string.Empty;
     [ObservableProperty] private bool _hasExecutionResults;
+    [ObservableProperty] private ExecutionStatsViewModel? _executionStats;
+    [ObservableProperty] private bool _hasExecutionStats;
+    [ObservableProperty] private int _executionPanelTabIndex;
+    [ObservableProperty] private string _busyMessage = string.Empty;
     [ObservableProperty] private string _loadedBatchSummary = string.Empty;
     [ObservableProperty] private ConnectionType _batchConnectionType = ConnectionType.Telnet;
 
@@ -98,6 +104,7 @@ public partial class MainViewModel : ObservableObject
 
     public bool HasOpenTabs => OpenServerTabs.Count > 0;
     public int SelectedServerCount => SelectedServers.Count;
+    public bool IsBusy => IsExecuting || IsTestingConnections;
 
     public event Action<IReadOnlyList<GroupItemViewModel>>? GroupSelectionRequested;
     public event Action<IReadOnlyList<ServerItemViewModel>>? ServerSelectionRequested;
@@ -114,8 +121,11 @@ public partial class MainViewModel : ObservableObject
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) =>
         {
-            CurrentTime = DateTime.Now.ToString("HH:mm:ss");
-            CurrentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
+            var now = DateTime.Now;
+            CurrentTime = now.ToString("HH:mm:ss");
+            CurrentDate = now.ToString("dddd, MMMM dd, yyyy");
+            CurrentPersianDate = PersianDateHelper.FormatLong(now);
+            CurrentPersianDateShort = PersianDateHelper.FormatShort(now);
         };
         _clockTimer.Start();
 
@@ -895,6 +905,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         IsTestingConnections = true;
+        BusyMessage = "Testing connections...";
+        OnPropertyChanged(nameof(IsBusy));
         StatusMessage = "Testing connections...";
 
         var settings = BuildSettings();
@@ -935,6 +947,7 @@ public partial class MainViewModel : ObservableObject
         ExecutionResults.Clear();
         HasExecutionResults = false;
         ExecutionSummary = string.Empty;
+        BeginExecutionSession("Executing commands...");
         _executionCts = new CancellationTokenSource();
 
         AddOutput($"=== Execution started ({serversWithCommands.Count} server(s)) ===", "Info");
@@ -994,6 +1007,7 @@ public partial class MainViewModel : ObservableObject
         ExecutionResults.Clear();
         HasExecutionResults = false;
         ExecutionSummary = string.Empty;
+        ClearExecutionStats();
     }
 
     [RelayCommand]
@@ -1060,6 +1074,7 @@ public partial class MainViewModel : ObservableObject
         ExecutionResults.Clear();
         HasExecutionResults = false;
         ExecutionSummary = string.Empty;
+        BeginExecutionSession("Running batch job...");
         _executionCts = new CancellationTokenSource();
 
         var job = PrepareBatchJobForExecution(_loadedBatchJob, credential);
@@ -1121,6 +1136,33 @@ public partial class MainViewModel : ObservableObject
     {
         ExecuteBatchCommand.NotifyCanExecuteChanged();
         RunCommandCommand.NotifyCanExecuteChanged();
+        UpdateBusyState();
+    }
+
+    partial void OnIsTestingConnectionsChanged(bool value) => UpdateBusyState();
+
+    private void UpdateBusyState()
+    {
+        BusyMessage = IsExecuting
+            ? "Executing commands..."
+            : IsTestingConnections
+                ? "Testing connections..."
+                : string.Empty;
+        OnPropertyChanged(nameof(IsBusy));
+    }
+
+    private void ClearExecutionStats()
+    {
+        ExecutionStats = null;
+        HasExecutionStats = false;
+    }
+
+    private void BeginExecutionSession(string busyMessage)
+    {
+        ClearExecutionStats();
+        ExecutionPanelTabIndex = 0;
+        BusyMessage = busyMessage;
+        OnPropertyChanged(nameof(IsBusy));
     }
 
     [RelayCommand(CanExecute = nameof(CanRunCommand))]
@@ -1160,6 +1202,7 @@ public partial class MainViewModel : ObservableObject
         ExecutionResults.Clear();
         HasExecutionResults = false;
         ExecutionSummary = string.Empty;
+        BeginExecutionSession("Running command on targets...");
         _executionCts = new CancellationTokenSource();
 
         AddOutput($"=== Run command started: {job.Targets.Count} target(s), {job.Defaults.ConnectionType} port {job.Defaults.Port} ===", "Info");
@@ -1453,6 +1496,10 @@ public partial class MainViewModel : ObservableObject
             ExecutionSummary = $"Completed in {session.TotalDuration.TotalSeconds:F2}s | " +
                                $"Servers: {session.SuccessCount} OK, {session.FailedCount} failed | " +
                                $"Commands: {session.SuccessfulCommands}/{session.TotalCommands} OK";
+
+            ExecutionStats = ExecutionStatsViewModel.FromSession(session);
+            HasExecutionStats = true;
+            ExecutionPanelTabIndex = 2;
 
             AddOutput($"=== {ExecutionSummary} ===", "Info");
             StatusMessage = "Execution completed";

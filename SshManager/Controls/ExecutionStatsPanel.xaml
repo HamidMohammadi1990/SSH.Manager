@@ -1,0 +1,106 @@
+<UserControl x:Class="SshManager.Controls.ExecutionStatsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:SshManager.Controls"
+             xmlns:vm="clr-namespace:SshManager.ViewModels">
+    <ScrollViewer Style="{DynamicResource ModernScrollViewer}" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="0,8,0,0">
+            <TextBlock Text="Execution Statistics" Style="{DynamicResource SectionTitle}"/>
+            <TextBlock Margin="0,0,0,12" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12">
+                <Run Text="Duration:"/>
+                <Run Text="{Binding TotalSeconds, StringFormat={}{0:F1}s, Mode=OneWay}" FontWeight="SemiBold"
+                     Foreground="{DynamicResource TextPrimaryBrush}"/>
+            </TextBlock>
+
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Background="{DynamicResource BgCardBrush}" CornerRadius="8" Padding="12" Margin="0,0,6,0"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <controls:DonutChart Grid.Column="0"
+                                             SuccessValue="{Binding SuccessServers}"
+                                             FailedValue="{Binding FailedServers}"
+                                             SkippedValue="{Binding SkippedServers}"
+                                             CenterTitle="Servers"
+                                             CenterValue="{Binding ServerSuccessRate, StringFormat={}{0:F0}%}"
+                                             Width="100" Height="100" HorizontalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <TextBlock Text="Target Servers" Style="{DynamicResource FieldLabel}" Margin="0,0,0,8"/>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4">
+                                <Run Text="OK:"/>
+                                <Run Text="{Binding SuccessServers, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}"/>
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4">
+                                <Run Text="Failed:"/>
+                                <Run Text="{Binding FailedServers, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource ErrorBrush}"/>
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}">
+                                <Run Text="Skipped:"/>
+                                <Run Text="{Binding SkippedServers, Mode=OneWay}" FontWeight="SemiBold"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Column="1" Background="{DynamicResource BgCardBrush}" CornerRadius="8" Padding="12" Margin="6,0,0,0"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <controls:DonutChart Grid.Column="0"
+                                             SuccessValue="{Binding SuccessCommands}"
+                                             FailedValue="{Binding FailedCommands}"
+                                             SkippedValue="{Binding SkippedCommands}"
+                                             CenterTitle="Commands"
+                                             CenterValue="{Binding CommandSuccessRate, StringFormat={}{0:F0}%}"
+                                             Width="100" Height="100" HorizontalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <TextBlock Text="Command Results" Style="{DynamicResource FieldLabel}" Margin="0,0,0,8"/>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4">
+                                <Run Text="Success:"/>
+                                <Run Text="{Binding SuccessCommands, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}"/>
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4">
+                                <Run Text="Failed:"/>
+                                <Run Text="{Binding FailedCommands, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource ErrorBrush}"/>
+                            </TextBlock>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}">
+                                <Run Text="Skipped:"/>
+                                <Run Text="{Binding SkippedCommands, Mode=OneWay}" FontWeight="SemiBold"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <TextBlock Text="Server Success Rate" Style="{DynamicResource FieldLabel}" Margin="0,0,0,4"/>
+            <Grid Height="12" Margin="0,0,0,4">
+                <Border Background="{DynamicResource BgDarkBrush}" CornerRadius="6"/>
+                <Border Background="{DynamicResource AccentBrush}" CornerRadius="6" HorizontalAlignment="Left">
+                    <Border.Width>
+                        <MultiBinding Converter="{StaticResource PercentWidth}">
+                            <Binding Path="ServerSuccessRate"/>
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="ActualWidth"/>
+                        </MultiBinding>
+                    </Border.Width>
+                </Border>
+            </Grid>
+            <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
+                <Run Text="{Binding SuccessServers, Mode=OneWay}"/>
+                <Run Text="/"/>
+                <Run Text="{Binding TotalServers, Mode=OneWay}"/>
+                <Run Text=" targets succeeded"/>
+            </TextBlock>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
