@@ -56,8 +56,8 @@ public partial class AppDialog : Window
         {
             DialogKind.Warning => ("#FFC107", "#33FFC107", "#FFC107", "!"),
             DialogKind.Error => ("#F44336", "#33F44336", "#F44336", "✕"),
-            DialogKind.Question => ("#7C4DFF", "#337C4DFF", "#B388FF", "?"),
-            _ => ("#7C4DFF", "#337C4DFF", "#B388FF", "i")
+            DialogKind.Question => ("#0078D4", "#330078D4", "#4CA3E8", "?"),
+            _ => ("#0078D4", "#330078D4", "#4CA3E8", "i")
         };
 
         AccentBar.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(accent)!);

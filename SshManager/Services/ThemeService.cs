@@ -36,15 +36,15 @@ public static class ThemeService
 
     private static readonly IReadOnlyDictionary<string, Color> DarkPalette = new Dictionary<string, Color>
     {
-        ["BgDark"] = ColorFromHex("#1E1E2E"),
-        ["BgMedium"] = ColorFromHex("#252536"),
-        ["BgLight"] = ColorFromHex("#2D2D44"),
-        ["BgCard"] = ColorFromHex("#313145"),
-        ["Accent"] = ColorFromHex("#7C4DFF"),
-        ["AccentLight"] = ColorFromHex("#B388FF"),
-        ["TextPrimary"] = ColorFromHex("#E8E8F0"),
-        ["TextSecondary"] = ColorFromHex("#A0A0B8"),
-        ["Border"] = ColorFromHex("#3D3D55"),
+        ["BgDark"] = ColorFromHex("#121212"),
+        ["BgMedium"] = ColorFromHex("#1E1E1E"),
+        ["BgLight"] = ColorFromHex("#2D2D2D"),
+        ["BgCard"] = ColorFromHex("#252526"),
+        ["Accent"] = ColorFromHex("#0078D4"),
+        ["AccentLight"] = ColorFromHex("#4CA3E8"),
+        ["TextPrimary"] = ColorFromHex("#E8E8E8"),
+        ["TextSecondary"] = ColorFromHex("#9E9E9E"),
+        ["Border"] = ColorFromHex("#3E3E3E"),
         ["Success"] = ColorFromHex("#4CAF50"),
         ["Error"] = ColorFromHex("#F44336"),
         ["Warning"] = ColorFromHex("#FFC107")
