@@ -1343,6 +1343,16 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void OpenHelp()
+    {
+        var dialog = new HelpDialog
+        {
+            Owner = Application.Current.MainWindow
+        };
+        dialog.ShowDialog();
+    }
+
+    [RelayCommand]
     private void OpenSettings()
     {
         var dialog = new SettingsDialog

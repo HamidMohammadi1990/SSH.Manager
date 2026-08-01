@@ -10,6 +10,9 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource BgDarkBrush}"
         Closing="Window_Closing">
+    <Window.InputBindings>
+        <KeyBinding Key="F1" Command="{Binding OpenHelpCommand}"/>
+    </Window.InputBindings>
 
     <Window.DataContext>
         <vm:MainViewModel/>
@@ -56,6 +59,9 @@
                     <Button Content="{Binding ThemeToggleLabel}" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
                             Command="{Binding ToggleThemeCommand}"
                             ToolTip="Switch between dark and light theme"/>
+                    <Button Content="📖 Guide" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
+                            Command="{Binding OpenHelpCommand}"
+                            ToolTip="User guide — file formats and workflows (English / فارسی)"/>
                     <Button Content="⚙ Settings" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"
                             Command="{Binding OpenSettingsCommand}"/>
                     <Button Content="💾 Save" Style="{DynamicResource SecondaryButton}" Margin="0,0,8,0"

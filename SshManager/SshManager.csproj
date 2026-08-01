@@ -23,6 +23,9 @@
     <Content Include="Assets\app-icon.png" Condition="Exists('Assets\app-icon.png')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Samples\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <Target Name="GenerateAppIcon" BeforeTargets="PrepareForBuild" Condition="!Exists('Assets\app-icon.ico')">
